@@ -45,5 +45,10 @@ export interface BusinessCard {
   landline_label?: string;    // Default: "Office Line"
   // QR Code Settings
   qr_logo_enabled?: boolean;  // Stores whether this business's QR code should have their logo embedded (default: true)
+
+  // Rate Us / Google Reviews Settings
+  rate_us_enabled?: boolean;  // Enables 5 Golden Stars rating button
+  review_url?: string;       // Custom Google Review / Rating URL
+  rate_us_label?: string;    // Custom label for Rate Us button (Default: "Rate Us")
 }
 
