@@ -47,6 +47,9 @@ function mapRowToCard(row: any): BusinessCard {
     mobile_label: row.mobile_label || 'Call Us',
     landline_label: row.landline_label || 'Office Line',
     qr_logo_enabled: row.qr_logo_enabled ?? true,
+    rate_us_enabled: row.rate_us_enabled ?? false,
+    review_url: row.review_url || '',
+    rate_us_label: row.rate_us_label || 'Rate Us',
   };
 }
 
@@ -87,6 +90,9 @@ function mapCardToRow(card: BusinessCard) {
     mobile_label: card.mobile_label || null,
     landline_label: card.landline_label || null,
     qr_logo_enabled: card.qr_logo_enabled ?? true,
+    rate_us_enabled: card.rate_us_enabled ?? false,
+    review_url: card.review_url || null,
+    rate_us_label: card.rate_us_label || null,
   };
 }
 
