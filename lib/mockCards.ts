@@ -20,6 +20,9 @@ export const INITIAL_MOCK_CARDS: BusinessCard[] = [
     facebook: "https://www.facebook.com/share/1DRXgWAKKy/",
     website: "",
     primary_action: "phone",
-    avatar_border_radius: 50
+    avatar_border_radius: 50,
+    rate_us_enabled: true,
+    rate_us_label: "Rate Us / Leave 5 Stars",
+    review_url: "https://maps.google.com/?q=Qu+Tirakka+Rue+237+Nr+12+Nador"
   }
 ];

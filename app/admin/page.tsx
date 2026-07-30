@@ -7,6 +7,7 @@ import { getSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { PrimaryActionType, BusinessCard, BusinessLanguage, CardLayout } from '@/lib/types';
 import { AdminQRCodeGenerator } from '@/components/AdminQRCodeGenerator';
+import { GoogleLogo } from '@/components/GoogleLogo';
 import { ColorSwatch, ExtractedColors, extractColorsFromImage, getBestContrastSwatch, compressLogoImage } from '@/lib/colorExtractor';
 import { COUNTRY_CODES, parsePhoneNumber, formatFullPhoneNumber, DEFAULT_COUNTRY } from '@/lib/countryCodes';
 import { motion, AnimatePresence } from 'motion/react';
@@ -164,9 +165,9 @@ export default function AdminPage() {
     mobile_label: 'Call Us',
     landline_label: 'Office Line',
     qr_logo_enabled: true,
-    rate_us_enabled: false,
+    rate_us_enabled: true,
     review_url: '',
-    rate_us_label: 'Rate Us',
+    rate_us_label: 'Rate Us / Leave 5 Stars',
   });
 
   const [phoneCode, setPhoneCode] = useState<string>(DEFAULT_COUNTRY.dialCode);
@@ -410,9 +411,9 @@ export default function AdminPage() {
                 mobile_label: cardToEdit.mobile_label || 'Call Us',
                 landline_label: cardToEdit.landline_label || 'Office Line',
                 qr_logo_enabled: cardToEdit.qr_logo_enabled ?? true,
-                rate_us_enabled: cardToEdit.rate_us_enabled ?? false,
+                rate_us_enabled: cardToEdit.rate_us_enabled ?? true,
                 review_url: cardToEdit.review_url || '',
-                rate_us_label: cardToEdit.rate_us_label || 'Rate Us',
+                rate_us_label: cardToEdit.rate_us_label || 'Rate Us / Leave 5 Stars',
               });
               setSlug(cardToEdit.slug);
             }
@@ -567,9 +568,9 @@ export default function AdminPage() {
               mobile_label: cardToEdit.mobile_label || '',
               landline_label: cardToEdit.landline_label || '',
               qr_logo_enabled: cardToEdit.qr_logo_enabled ?? true,
-              rate_us_enabled: cardToEdit.rate_us_enabled ?? false,
+              rate_us_enabled: cardToEdit.rate_us_enabled ?? true,
               review_url: cardToEdit.review_url || '',
-              rate_us_label: cardToEdit.rate_us_label || 'Rate Us',
+              rate_us_label: cardToEdit.rate_us_label || 'Rate Us / Leave 5 Stars',
             });
             setSlug(cardToEdit.slug);
           }
@@ -609,9 +610,9 @@ export default function AdminPage() {
           mobile_label: '',
           landline_label: '',
           qr_logo_enabled: true,
-          rate_us_enabled: false,
+          rate_us_enabled: true,
           review_url: '',
-          rate_us_label: 'Rate Us',
+          rate_us_label: 'Rate Us / Leave 5 Stars',
         });
         setEditingSlug(null);
         setSlug('');
@@ -1135,7 +1136,7 @@ export default function AdminPage() {
       mobile_label: form.mobile_label.trim() || undefined,
       landline_label: form.landline_label.trim() || undefined,
       qr_logo_enabled: form.qr_logo_enabled ?? true,
-      rate_us_enabled: form.rate_us_enabled ?? false,
+      rate_us_enabled: form.rate_us_enabled ?? true,
       review_url: sanitizeUrl(form.review_url),
       rate_us_label: form.rate_us_label.trim() || undefined,
     };
@@ -1193,9 +1194,9 @@ export default function AdminPage() {
         mobile_label: 'Call Us',
         landline_label: 'Office Line',
         qr_logo_enabled: true,
-        rate_us_enabled: false,
+        rate_us_enabled: true,
         review_url: '',
-        rate_us_label: 'Rate Us',
+        rate_us_label: 'Rate Us / Leave 5 Stars',
       });
       setSlug('');
       setExtractedColors(null);
@@ -2323,6 +2324,68 @@ export default function AdminPage() {
                       </div>
                     </div>
 
+                    {/* 11. 5 Golden Stars & Google Review Button */}
+                    <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/40 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <Star className="w-4 h-4 fill-white text-white" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-xs text-slate-900 block">11. 5 Golden Stars & Google Review Button</span>
+                            <span className="text-[10px] text-slate-500 block">Displays 5 golden stars + Google logo on card</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={form.rate_us_enabled}
+                          onClick={() => setForm(prev => ({ ...prev, rate_us_enabled: !prev.rate_us_enabled }))}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            form.rate_us_enabled ? 'bg-amber-500' : 'bg-slate-200'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                              form.rate_us_enabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {form.rate_us_enabled && (
+                        <div className="space-y-3 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                              Direct Google Review URL <span className="text-slate-400 font-normal lowercase">(optional)</span>
+                            </label>
+                            <input
+                              type="url"
+                              name="review_url"
+                              value={form.review_url}
+                              onChange={handleChange}
+                              placeholder="https://g.page/r/your-google-place-id/review"
+                              className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                            />
+                            <p className="text-[10px] text-slate-500 mt-1">
+                              Direct link to Google Reviews. If blank, it automatically directs to your location address or Google Maps URL.
+                            </p>
+                          </div>
+
+                          <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex justify-center">
+                            <div className="w-full max-w-[260px] py-3.5 px-4 rounded-xl flex flex-col items-center justify-center bg-amber-500/10 border-0 text-amber-950 gap-1.5">
+                              <div className="flex items-center gap-1.5 text-amber-400">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star key={i} className="w-5 h-5 fill-amber-400 text-amber-400" />
+                                ))}
+                              </div>
+                              <GoogleLogo className="h-5 w-auto" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                   </div>
                 </div>
               ) : (
@@ -2650,92 +2713,103 @@ export default function AdminPage() {
                         </motion.div>
                       )}
                     </AnimatePresence>
-
-                    {/* Rate Us / Google Reviews Toggle & Custom URL */}
-                    <div className="mt-4 pt-4 border-t border-slate-150 space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
-                            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                          </div>
-                          <div>
-                            <span className="text-xs font-mono font-bold uppercase text-slate-800 tracking-wider block">
-                              "Rate Us" Button (5 Golden Stars)
-                            </span>
-                            <span className="text-[10px] text-slate-500 block">
-                              Display a 5-star Google review button on your card
-                            </span>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={form.rate_us_enabled}
-                          onClick={() => setForm(prev => ({ ...prev, rate_us_enabled: !prev.rate_us_enabled }))}
-                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            form.rate_us_enabled ? 'bg-amber-500' : 'bg-slate-200'
-                          }`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                              form.rate_us_enabled ? 'translate-x-5' : 'translate-x-0'
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      <AnimatePresence>
-                        {form.rate_us_enabled && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0, y: -6 }}
-                            animate={{ opacity: 1, height: 'auto', y: 0 }}
-                            exit={{ opacity: 0, height: 0, y: -6 }}
-                            transition={{ duration: 0.2 }}
-                            className="pt-1 space-y-3"
-                          >
-                            <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <label htmlFor="review-url-input" className="text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
-                                  Direct Google Review URL
-                                </label>
-                                <span className="text-[10px] text-slate-400 font-mono">Optional</span>
-                              </div>
-                              <input
-                                id="review-url-input"
-                                type="url"
-                                name="review_url"
-                                value={form.review_url}
-                                onChange={handleChange}
-                                placeholder="https://g.page/r/your-google-place-id/review or https://search.google.com/local/writereview?placeid=..."
-                                className="w-full h-11 px-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/25 focus:border-amber-500 transition-all text-sm font-sans touch-manipulation shadow-2xs"
-                              />
-                              <p className="text-[10px] text-slate-500 font-sans leading-relaxed mt-1">
-                                If left blank, it automatically directs visitors to leave a review for your location address or Google Maps link.
-                              </p>
-                            </div>
-
-                            <div>
-                              <label htmlFor="rate-us-label-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-1">
-                                Button Custom Label
-                              </label>
-                              <input
-                                id="rate-us-label-input"
-                                type="text"
-                                name="rate_us_label"
-                                value={form.rate_us_label}
-                                onChange={handleChange}
-                                placeholder="Rate Us / Leave 5 Stars"
-                                className="w-full h-10 px-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-xs font-sans touch-manipulation shadow-2xs"
-                              />
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
                   </div>
                 </div>
               </div>
+
+          {/* Rate Us / Google Reviews Toggle & Custom URL (Applies to ALL card layouts - Personal & Business) */}
+          <div className="border-t border-slate-150 pt-6">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 border border-amber-400/20">
+                  <Star className="w-4.5 h-4.5 fill-amber-400 text-amber-400" />
+                </div>
+                <div>
+                  <span className="text-xs font-mono font-bold uppercase text-slate-800 tracking-wider block">
+                    5 Golden Stars & Google Review Button
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">
+                    Display 5 golden stars + Google logo button on public card (Personal & Business)
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.rate_us_enabled}
+                onClick={() => setForm(prev => ({ ...prev, rate_us_enabled: !prev.rate_us_enabled }))}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  form.rate_us_enabled ? 'bg-amber-500' : 'bg-slate-200'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    form.rate_us_enabled ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <AnimatePresence>
+              {form.rate_us_enabled && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, y: -6 }}
+                  animate={{ opacity: 1, height: 'auto', y: 0 }}
+                  exit={{ opacity: 0, height: 0, y: -6 }}
+                  transition={{ duration: 0.2 }}
+                  className="pt-3 space-y-3"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label htmlFor="review-url-input" className="text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
+                        Direct Google Review URL
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-mono">Optional</span>
+                    </div>
+                    <input
+                      id="review-url-input"
+                      type="url"
+                      name="review_url"
+                      value={form.review_url}
+                      onChange={handleChange}
+                      placeholder="https://g.page/r/your-google-place-id/review or https://search.google.com/local/writereview?placeid=..."
+                      className="w-full h-11 px-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/25 focus:border-amber-500 transition-all text-sm font-sans touch-manipulation shadow-2xs"
+                    />
+                    <p className="text-[10px] text-slate-500 font-sans leading-relaxed mt-1">
+                      Direct link to your Google Business reviews page. If left blank, it uses your card location address or Google Maps URL.
+                    </p>
+                  </div>
+
+                  {/* Live Visual 5-Star Button Preview */}
+                  <div className="mt-3 pt-3 border-t border-slate-200/80">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-mono font-bold uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        Live Button Preview
+                      </span>
+                      <span className="text-[10px] text-amber-600 font-medium">Borderless • As shown on public card</span>
+                    </div>
+
+                    <div className="p-4 bg-slate-900/95 rounded-2xl border border-slate-800 shadow-inner flex justify-center">
+                      <div className="w-full max-w-[280px] py-4 px-5 flex flex-col items-center justify-center bg-transparent text-amber-950 transition-transform duration-200 hover:scale-[1.02] cursor-pointer gap-2">
+                        {/* 5 Big Golden Stars */}
+                        <div className="flex items-center gap-1.5 text-amber-400">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} className="w-6 h-6 fill-amber-400 text-amber-400 drop-shadow-xs" />
+                          ))}
+                        </div>
+                        {/* Centered Google Logo on Next Line */}
+                        <div className="flex items-center justify-center pt-0.5">
+                          <GoogleLogo className="h-5.5 w-auto" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
               {/* Social Channels */}
               <div className="border-t border-slate-150 pt-6">

@@ -59,12 +59,8 @@ export default function Home() {
     getSession().then((session) => {
       if (!isMounted) return;
 
-      if (!session) {
-        router.replace('/login');
-        return;
-      }
+      setIsLoggedIn(!!session);
 
-      setIsLoggedIn(true);
       getCards().then((clientCards) => {
         if (!isMounted) return;
         setCards(clientCards);
@@ -73,8 +69,8 @@ export default function Home() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session && isMounted) {
-        router.replace('/login');
+      if (isMounted) {
+        setIsLoggedIn(!!session);
       }
     });
 
@@ -82,7 +78,7 @@ export default function Home() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [router]);
+  }, []);
 
   const handleAuthAction = () => {
     if (isLoggedIn) {
