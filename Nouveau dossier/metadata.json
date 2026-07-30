@@ -1,6 +1,0 @@
-{
-  "name": "VCARDS SPACE",
-  "description": "A premium NFC-enabled digital business cards ecosystem to provision and manage modern high-converting landing pages for businesses.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
