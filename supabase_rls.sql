@@ -108,3 +108,10 @@ ON storage.objects
 FOR DELETE
 TO authenticated
 USING (bucket_id = 'logos' AND auth.role() = 'authenticated');
+
+-- ----------------------------------------------------
+-- OPTIONAL COLUMNS FOR BUSINESS CARD TYPE
+-- ----------------------------------------------------
+ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS wifi_password text;
+ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS wifi_password_label text;
+

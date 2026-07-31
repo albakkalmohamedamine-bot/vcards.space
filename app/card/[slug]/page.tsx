@@ -35,7 +35,8 @@ import {
   MoreVertical,
   BookmarkPlus,
   HelpCircle,
-  Info
+  Info,
+  Wifi
 } from 'lucide-react';
 
 const ACTION_OPTIONS = [
@@ -56,6 +57,7 @@ export default function CardPage() {
   const [card, setCard] = useState<BusinessCard | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [copiedWifi, setCopiedWifi] = useState(false);
   const [islandState, setIslandState] = useState<'idle' | 'dot' | 'expanded' | 'collapsed' | 'hidden'>('idle');
 
   // Save Modal & Shortcut States
@@ -175,6 +177,7 @@ export default function CardPage() {
           <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.68 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.33-6.33V9.05a8.16 8.16 0 0 0 4.92 1.58V7.18a4.85 4.85 0 0 1-1-.49z"/>
         </svg>
       );
+      case 'wifi_password': return <Wifi className={className} />;
       default: return <ExternalLink className={className} />;
     }
   };
@@ -222,6 +225,25 @@ export default function CardPage() {
           url: pdfUrl,
         });
       }
+    }
+
+    if (c.wifi_password) {
+      rows.push({
+        id: 'wifi_password',
+        label: copiedWifi ? 'Copied!' : (c.wifi_password_label || 'WiFi Password'),
+        icon: copiedWifi ? <Check className="w-5 h-5" /> : <Wifi className="w-5 h-5" />,
+        onClick: async () => {
+          if (typeof navigator !== 'undefined' && navigator.clipboard) {
+            try {
+              await navigator.clipboard.writeText(c.wifi_password || '');
+            } catch (err) {
+              console.error('Failed to copy WiFi password:', err);
+            }
+          }
+          setCopiedWifi(true);
+          setTimeout(() => setCopiedWifi(false), 2000);
+        }
+      });
     }
 
     if (c.instagram) {
@@ -797,34 +819,71 @@ export default function CardPage() {
                 
                 <div className="grid grid-cols-3 gap-y-6 gap-x-2 justify-items-center max-w-[280px] mx-auto">
                   {(() => {
-                    const secondaryActions = ['phone', 'landline', 'whatsapp', 'email', 'address', 'website', 'instagram', 'facebook', 'tiktok']
-                      .filter(k => k !== card.primary_action && card[k as keyof typeof card]);
+                    const secondaryActions = ['phone', 'landline', 'whatsapp', 'email', 'address', 'website', 'instagram', 'facebook', 'tiktok', 'wifi_password']
+                      .filter(k => k !== card.primary_action && Boolean(card[k as keyof typeof card]));
 
                     if (secondaryActions.length > 0) {
                       const translations = getCardTranslation(card.language || 'en');
-                      return secondaryActions.map((actionKey) => (
-                        <a 
-                          key={actionKey}
-                          href={getActionHref(actionKey, card[actionKey as keyof typeof card] as string)}
-                          target={['whatsapp', 'website', 'instagram', 'facebook', 'tiktok', 'address'].includes(actionKey) ? "_blank" : undefined}
-                          rel="noopener noreferrer"
-                          className="group flex flex-col items-center w-16"
-                        >
-                          <div 
-                            className="w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-md"
-                            style={{ 
-                              backgroundColor: `${themeColor}08`,
-                              borderColor: `${themeColor}15`,
-                              color: themeColor
-                            }}
+                      return secondaryActions.map((actionKey) => {
+                        if (actionKey === 'wifi_password') {
+                          return (
+                            <button
+                              key={actionKey}
+                              type="button"
+                              onClick={async () => {
+                                if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                                  try {
+                                    await navigator.clipboard.writeText(card.wifi_password || '');
+                                  } catch (err) {
+                                    console.error('Failed to copy WiFi password:', err);
+                                  }
+                                }
+                                setCopiedWifi(true);
+                                setTimeout(() => setCopiedWifi(false), 2000);
+                              }}
+                              className="group flex flex-col items-center w-16 cursor-pointer"
+                            >
+                              <div 
+                                className="w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-md"
+                                style={{ 
+                                  backgroundColor: `${themeColor}08`,
+                                  borderColor: `${themeColor}15`,
+                                  color: themeColor
+                                }}
+                              >
+                                {copiedWifi ? <Check className="w-5 h-5" /> : <Wifi className="w-5 h-5" />}
+                              </div>
+                              <span className="text-[9px] font-bold text-slate-500 tracking-wide mt-2 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
+                                {copiedWifi ? 'Copied!' : (card.wifi_password_label || 'WiFi')}
+                              </span>
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <a 
+                            key={actionKey}
+                            href={getActionHref(actionKey, card[actionKey as keyof typeof card] as string)}
+                            target={['whatsapp', 'website', 'instagram', 'facebook', 'tiktok', 'address'].includes(actionKey) ? "_blank" : undefined}
+                            rel="noopener noreferrer"
+                            className="group flex flex-col items-center w-16"
                           >
-                            {getActionIcon(actionKey, 'w-5 h-5')}
-                          </div>
-                          <span className="text-[9px] font-bold text-slate-500 tracking-wide mt-2 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
-                            {translations.smallLabels[actionKey] || translations.smallLabels.default}
-                          </span>
-                        </a>
-                      ));
+                            <div 
+                              className="w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-md"
+                              style={{ 
+                                backgroundColor: `${themeColor}08`,
+                                borderColor: `${themeColor}15`,
+                                color: themeColor
+                              }}
+                            >
+                              {getActionIcon(actionKey, 'w-5 h-5')}
+                            </div>
+                            <span className="text-[9px] font-bold text-slate-500 tracking-wide mt-2 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
+                              {translations.smallLabels[actionKey] || translations.smallLabels.default}
+                            </span>
+                          </a>
+                        );
+                      });
                     }
                     return null;
                   })()}

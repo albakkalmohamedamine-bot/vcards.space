@@ -34,6 +34,8 @@ export interface BusinessCard {
   menu_pdf?: string;          // PDF file data URL for Menu
   menu_pdf_name?: string;     // PDF file display name
   menu_label?: string;        // Default: "Our Menu"
+  wifi_password?: string;     // WiFi Password for Business Card Type
+  wifi_password_label?: string;// Default: "WiFi Password"
   instagram_label?: string;   // Default: "Instagram"
   facebook_label?: string;    // Default: "Facebook"
   tiktok_label?: string;      // Default: "TikTok"

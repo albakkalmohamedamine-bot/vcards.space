@@ -24,6 +24,7 @@ import {
   Check, 
   Copy, 
   AlertCircle,
+  AlertTriangle,
   Sparkles,
   ChevronRight,
   ChevronDown,
@@ -43,7 +44,8 @@ import {
   Sliders,
   Upload,
   PhoneCall,
-  Star
+  Star,
+  Wifi
 } from 'lucide-react';
 
 const ACTION_OPTIONS: { value: PrimaryActionType; label: string }[] = [
@@ -122,6 +124,7 @@ export default function AdminPage() {
   const router = useRouter();
   
   const [existingSlugs, setExistingSlugs] = useState<string[]>([]);
+  const [allCards, setAllCards] = useState<BusinessCard[]>([]);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [cardToConfirm, setCardToConfirm] = useState<BusinessCard | null>(null);
@@ -155,6 +158,8 @@ export default function AdminPage() {
     menu_pdf: '',
     menu_pdf_name: '',
     menu_label: 'Our Menu',
+    wifi_password: '',
+    wifi_password_label: 'WiFi Password',
     instagram_label: 'Instagram',
     facebook_label: 'Facebook',
     tiktok_label: 'TikTok',
@@ -334,6 +339,7 @@ export default function AdminPage() {
 
       getCards().then((cards) => {
         if (!isMounted) return;
+        setAllCards(cards);
         setExistingSlugs(cards.map((c) => c.slug));
 
         if (typeof window !== 'undefined') {
@@ -401,6 +407,8 @@ export default function AdminPage() {
                 menu_pdf: cardToEdit.menu_pdf || '',
                 menu_pdf_name: cardToEdit.menu_pdf_name || '',
                 menu_label: cardToEdit.menu_label || 'Our Menu',
+                wifi_password: cardToEdit.wifi_password || '',
+                wifi_password_label: cardToEdit.wifi_password_label || 'WiFi Password',
                 instagram_label: cardToEdit.instagram_label || 'Instagram',
                 facebook_label: cardToEdit.facebook_label || 'Facebook',
                 tiktok_label: cardToEdit.tiktok_label || 'TikTok',
@@ -526,6 +534,7 @@ export default function AdminPage() {
       const editParam = params.get('edit');
       if (editParam) {
         getCards().then(cards => {
+          setAllCards(cards);
           const cardToEdit = cards.find(c => c.slug === editParam);
           if (cardToEdit) {
             const parsedPhone = parsePhoneNumber(cardToEdit.phone || '');
@@ -558,6 +567,8 @@ export default function AdminPage() {
               menu_pdf: cardToEdit.menu_pdf || '',
               menu_pdf_name: cardToEdit.menu_pdf_name || '',
               menu_label: cardToEdit.menu_label || '',
+              wifi_password: cardToEdit.wifi_password || '',
+              wifi_password_label: cardToEdit.wifi_password_label || '',
               instagram_label: cardToEdit.instagram_label || '',
               facebook_label: cardToEdit.facebook_label || '',
               tiktok_label: cardToEdit.tiktok_label || '',
@@ -600,6 +611,8 @@ export default function AdminPage() {
           menu_pdf: '',
           menu_pdf_name: '',
           menu_label: '',
+          wifi_password: '',
+          wifi_password_label: '',
           instagram_label: '',
           facebook_label: '',
           tiktok_label: '',
@@ -1126,6 +1139,8 @@ export default function AdminPage() {
       menu_pdf: form.menu_pdf || undefined,
       menu_pdf_name: form.menu_pdf_name || undefined,
       menu_label: form.menu_label.trim() || undefined,
+      wifi_password: form.wifi_password.trim() || undefined,
+      wifi_password_label: form.wifi_password_label.trim() || undefined,
       instagram_label: form.instagram_label.trim() || undefined,
       facebook_label: form.facebook_label.trim() || undefined,
       tiktok_label: form.tiktok_label.trim() || undefined,
@@ -1160,6 +1175,7 @@ export default function AdminPage() {
       if (!editingSlug) {
         setExistingSlugs(prev => [...prev, savedSlug]);
       }
+      getCards().then(updated => setAllCards(updated)).catch(() => {});
       setForm({
         name: '',
         tagline: '',
@@ -1184,6 +1200,8 @@ export default function AdminPage() {
         menu_pdf: '',
         menu_pdf_name: '',
         menu_label: 'Our Menu',
+        wifi_password: '',
+        wifi_password_label: 'WiFi Password',
         instagram_label: 'Instagram',
         facebook_label: 'Facebook',
         tiktok_label: 'TikTok',
@@ -1414,7 +1432,7 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label htmlFor="name-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
-                    Business Name *
+                    {form.layout === 'business' ? 'Business / Establishment Name *' : 'Full Name / Business Name *'}
                   </label>
                   <input
                     id="name-input"
@@ -1422,13 +1440,47 @@ export default function AdminPage() {
                     name="name"
                     value={form.name}
                     onChange={handleChange}
-                    placeholder="e.g. Hearth & Home Pottery"
+                    placeholder={form.layout === 'business' ? "e.g. Hearth & Home Pottery" : "e.g. John Doe / Attorney at Law"}
                     className={`w-full h-12 px-4 bg-slate-50 rounded-xl border ${
                       fieldErrors.name ? 'border-red-400 ring-2 ring-red-400/20' : 'border-slate-200 hover:border-slate-300'
                     } focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-sm font-sans touch-manipulation shadow-2xs focus:shadow-sm`}
                     required
                   />
                   <InlineFieldError message={fieldErrors.name} />
+
+                  {/* Duplicate Name Alert Notice */}
+                  {(() => {
+                    const trimmedName = form.name.trim().toLowerCase();
+                    const matchingNameCards = trimmedName
+                      ? allCards.filter(c => c.name.trim().toLowerCase() === trimmedName && c.slug !== editingSlug)
+                      : [];
+
+                    if (matchingNameCards.length === 0) return null;
+
+                    return (
+                      <div className="mt-2.5 p-3.5 bg-amber-50/90 border border-amber-200/90 rounded-xl flex items-start gap-3 text-amber-900 text-xs shadow-2xs">
+                        <div className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-bold text-amber-900">
+                              Notice: Name already exists in database
+                            </p>
+                            <span className="text-[10px] font-mono font-bold bg-amber-200/80 text-amber-800 px-2 py-0.5 rounded-md shrink-0">
+                              {matchingNameCards.length} {matchingNameCards.length === 1 ? 'match' : 'matches'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-amber-800/90 leading-relaxed font-sans">
+                            A card with the name <strong>"{form.name.trim()}"</strong> already exists in your database ({matchingNameCards.map(c => c.name + (c.slug ? ` [slug: ${c.slug}]` : '')).join(', ')}).
+                          </p>
+                          <p className="text-[10.5px] font-medium text-amber-700 leading-snug pt-1 border-t border-amber-200/60">
+                            💡 You can still create and save this card! Identical names are fully supported (e.g. multiple clients, lawyers, or businesses sharing the same name).
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>
@@ -1941,13 +1993,51 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* 2. Instagram */}
+                    {/* 2. WiFi Password */}
+                    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-cyan-100 text-cyan-700 flex items-center justify-center shrink-0">
+                          <Wifi className="w-4 h-4" />
+                        </div>
+                        <span className="font-bold text-xs text-slate-900">2. WiFi Password</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                            WiFi Password Text
+                          </label>
+                          <input
+                            type="text"
+                            name="wifi_password"
+                            value={form.wifi_password}
+                            onChange={handleChange}
+                            placeholder="e.g. GuestPass123"
+                            className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                            Button Label
+                          </label>
+                          <input
+                            type="text"
+                            name="wifi_password_label"
+                            value={form.wifi_password_label}
+                            onChange={handleChange}
+                            placeholder="WiFi Password"
+                            className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3. Instagram */}
                     <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-pink-100 text-pink-700 flex items-center justify-center shrink-0">
                           <Instagram className="w-4 h-4" />
                         </div>
-                        <span className="font-bold text-xs text-slate-900">2. Instagram</span>
+                        <span className="font-bold text-xs text-slate-900">3. Instagram</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -1979,13 +2069,13 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* 3. Facebook */}
+                    {/* 4. Facebook */}
                     <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
                           <Facebook className="w-4 h-4" />
                         </div>
-                        <span className="font-bold text-xs text-slate-900">3. Facebook</span>
+                        <span className="font-bold text-xs text-slate-900">4. Facebook</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -2017,7 +2107,7 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* 4. TikTok */}
+                    {/* 5. TikTok */}
                     <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center shrink-0">
@@ -2025,7 +2115,7 @@ export default function AdminPage() {
                             <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.68 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.33-6.33V9.05a8.16 8.16 0 0 0 4.92 1.58V7.18a4.85 4.85 0 0 1-1-.49z"/>
                           </svg>
                         </div>
-                        <span className="font-bold text-xs text-slate-900">4. TikTok</span>
+                        <span className="font-bold text-xs text-slate-900">5. TikTok</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -2057,13 +2147,13 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* 5. WhatsApp */}
+                    {/* 6. WhatsApp */}
                     <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                           <Phone className="w-4 h-4" />
                         </div>
-                        <span className="font-bold text-xs text-slate-900">5. WhatsApp</span>
+                        <span className="font-bold text-xs text-slate-900">6. WhatsApp</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -2108,13 +2198,13 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* 6. Email */}
+                    {/* 7. Email */}
                     <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
                           <Mail className="w-4 h-4" />
                         </div>
-                        <span className="font-bold text-xs text-slate-900">6. Email</span>
+                        <span className="font-bold text-xs text-slate-900">7. Email</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -2146,13 +2236,13 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* 7. Localisation */}
+                    {/* 8. Localisation */}
                     <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
                           <MapPin className="w-4 h-4" />
                         </div>
-                        <span className="font-bold text-xs text-slate-900">7. Localisation / Address</span>
+                        <span className="font-bold text-xs text-slate-900">8. Localisation / Address</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -2184,13 +2274,13 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* 8. Website */}
+                    {/* 9. Website */}
                     <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
                           <Globe className="w-4 h-4" />
                         </div>
-                        <span className="font-bold text-xs text-slate-900">8. Website</span>
+                        <span className="font-bold text-xs text-slate-900">9. Website</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -2222,13 +2312,13 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* 9. Mobile Phone */}
+                    {/* 10. Mobile Phone */}
                     <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
                           <Phone className="w-4 h-4" />
                         </div>
-                        <span className="font-bold text-xs text-slate-900">9. Mobile Phone</span>
+                        <span className="font-bold text-xs text-slate-900">10. Mobile Phone</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -2273,13 +2363,13 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* 10. Landline */}
+                    {/* 11. Landline */}
                     <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-800 flex items-center justify-center shrink-0">
                           <PhoneCall className="w-4 h-4" />
                         </div>
-                        <span className="font-bold text-xs text-slate-900">10. Landline (Fixe)</span>
+                        <span className="font-bold text-xs text-slate-900">11. Landline (Fixe)</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -2324,7 +2414,7 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* 11. 5 Golden Stars & Google Review Button */}
+                    {/* 12. 5 Golden Stars & Google Review Button */}
                     <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/40 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -2332,7 +2422,7 @@ export default function AdminPage() {
                             <Star className="w-4 h-4 fill-white text-white" />
                           </div>
                           <div>
-                            <span className="font-bold text-xs text-slate-900 block">11. 5 Golden Stars & Google Review Button</span>
+                            <span className="font-bold text-xs text-slate-900 block">12. 5 Golden Stars & Google Review Button</span>
                             <span className="text-[10px] text-slate-500 block">Displays 5 golden stars + Google logo on card</span>
                           </div>
                         </div>
@@ -3086,6 +3176,7 @@ export default function AdminPage() {
                       {(() => {
                         const rows = [
                           { val: form.menu_pdf, label: form.menu_label || 'Our Menu', icon: FileText },
+                          { val: form.wifi_password, label: form.wifi_password_label || 'WiFi Password', icon: Wifi },
                           { val: form.instagram, label: form.instagram_label || 'Instagram', icon: Instagram },
                           { val: form.facebook, label: form.facebook_label || 'Facebook', icon: Facebook },
                           { val: form.tiktok, label: form.tiktok_label || 'TikTok', icon: ({ className }: { className?: string }) => (

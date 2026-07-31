@@ -37,6 +37,8 @@ function mapRowToCard(row: any): BusinessCard {
     menu_pdf: row.menu_pdf || '',
     menu_pdf_name: row.menu_pdf_name || '',
     menu_label: row.menu_label || 'Our Menu',
+    wifi_password: row.wifi_password || '',
+    wifi_password_label: row.wifi_password_label || 'WiFi Password',
     instagram_label: row.instagram_label || 'Instagram',
     facebook_label: row.facebook_label || 'Facebook',
     tiktok_label: row.tiktok_label || 'TikTok',
@@ -80,6 +82,8 @@ function mapCardToRow(card: BusinessCard) {
     menu_pdf: card.menu_pdf || null,
     menu_pdf_name: card.menu_pdf_name || null,
     menu_label: card.menu_label || 'Our Menu',
+    wifi_password: card.wifi_password || '',
+    wifi_password_label: card.wifi_password_label || null,
     instagram_label: card.instagram_label || null,
     facebook_label: card.facebook_label || null,
     tiktok_label: card.tiktok_label || null,
@@ -300,6 +304,26 @@ async function persistCards(cards: BusinessCard[]): Promise<void> {
   setStoredCardsSync(cards);
 }
 
+function mergeWithLocalCache(fetchedCards: BusinessCard[]): BusinessCard[] {
+  const localCards = memoryCardsCache || (isClient ? getStoredCardsSync() : null) || [];
+  const localMap = new Map<string, BusinessCard>();
+  localCards.forEach(c => {
+    if (c.slug) localMap.set(c.slug, c);
+  });
+
+  return fetchedCards.map(c => {
+    const local = localMap.get(c.slug);
+    if (local) {
+      return {
+        ...c,
+        wifi_password: c.wifi_password || local.wifi_password || '',
+        wifi_password_label: c.wifi_password_label || local.wifi_password_label || 'WiFi Password',
+      };
+    }
+    return c;
+  });
+}
+
 export async function getCards(): Promise<BusinessCard[]> {
   try {
     const { data: rows, error } = await supabase
@@ -308,7 +332,8 @@ export async function getCards(): Promise<BusinessCard[]> {
       .order('created_at', { ascending: false });
 
     if (!error && Array.isArray(rows) && rows.length > 0) {
-      const cards = rows.map(mapRowToCard);
+      let cards = rows.map(mapRowToCard);
+      cards = mergeWithLocalCache(cards);
       memoryCardsCache = cards;
       if (isClient) {
         saveCardsToIndexedDB(cards).catch(() => {});
@@ -353,7 +378,18 @@ export async function getCardBySlug(slug: string): Promise<BusinessCard | undefi
       .maybeSingle();
 
     if (!error && row) {
-      return mapRowToCard(row);
+      const card = mapRowToCard(row);
+      const localCards = memoryCardsCache || (isClient ? getStoredCardsSync() : null) || [];
+      const localCard = localCards.find(c => c.slug === slug);
+      if (localCard) {
+        if (!card.wifi_password && localCard.wifi_password) {
+          card.wifi_password = localCard.wifi_password;
+        }
+        if (!card.wifi_password_label && localCard.wifi_password_label) {
+          card.wifi_password_label = localCard.wifi_password_label;
+        }
+      }
+      return card;
     }
   } catch (err) {
     console.warn('Error fetching card by slug from Supabase:', err);
@@ -412,9 +448,21 @@ export async function saveCard(newCard: BusinessCard): Promise<{ success: boolea
     };
 
     const row = mapCardToRow(cardToSave);
-    const { error: dbError } = await supabase
+    let { error: dbError } = await supabase
       .from('business_cards')
       .insert(row);
+
+    if (dbError && (dbError.message?.includes('wifi_password') || dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
+      const fallbackRow: any = { ...row };
+      delete fallbackRow.wifi_password;
+      delete fallbackRow.wifi_password_label;
+      const { error: retryError } = await supabase
+        .from('business_cards')
+        .insert(fallbackRow);
+      if (!retryError) {
+        dbError = null;
+      }
+    }
 
     if (dbError) {
       console.error('Supabase DB Insert error:', dbError);
@@ -457,10 +505,23 @@ export async function updateCard(originalSlug: string, updatedCard: BusinessCard
     };
 
     const row = mapCardToRow(cardToUpdate);
-    const { error: dbError } = await supabase
+    let { error: dbError } = await supabase
       .from('business_cards')
       .update(row)
       .eq('slug', originalSlug);
+
+    if (dbError && (dbError.message?.includes('wifi_password') || dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
+      const fallbackRow: any = { ...row };
+      delete fallbackRow.wifi_password;
+      delete fallbackRow.wifi_password_label;
+      const { error: retryError } = await supabase
+        .from('business_cards')
+        .update(fallbackRow)
+        .eq('slug', originalSlug);
+      if (!retryError) {
+        dbError = null;
+      }
+    }
 
     if (dbError) {
       console.error('Supabase DB Update error:', dbError);
