@@ -115,3 +115,13 @@ USING (bucket_id = 'logos' AND auth.role() = 'authenticated');
 ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS wifi_password text;
 ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS wifi_password_label text;
 
+
+-- Database Indexing for fast lookups
+CREATE INDEX IF NOT EXISTS idx_business_cards_slug ON business_cards(slug);
+CREATE INDEX IF NOT EXISTS idx_businesses_slug ON businesses(slug);
+
+-- Enforce strict file typing on the Supabase storage bucket
+INSERT INTO storage.buckets (id, name, public, allowed_mime_types)
+VALUES ('logos', 'logos', true, array['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'application/pdf', 'image/gif'])
+ON CONFLICT (id) DO UPDATE 
+SET allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'application/pdf', 'image/gif'];

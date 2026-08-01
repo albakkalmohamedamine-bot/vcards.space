@@ -59,7 +59,13 @@ export default function Home() {
     getSession().then((session) => {
       if (!isMounted) return;
 
-      setIsLoggedIn(!!session);
+      if (!session) {
+        setIsLoggedIn(false);
+        router.replace('/login');
+        return;
+      }
+
+      setIsLoggedIn(true);
 
       getCards().then((clientCards) => {
         if (!isMounted) return;
@@ -70,7 +76,12 @@ export default function Home() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (isMounted) {
-        setIsLoggedIn(!!session);
+        if (!session) {
+          setIsLoggedIn(false);
+          router.replace('/login');
+        } else {
+          setIsLoggedIn(true);
+        }
       }
     });
 
@@ -78,7 +89,7 @@ export default function Home() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   const handleAuthAction = () => {
     if (isLoggedIn) {
@@ -122,6 +133,14 @@ export default function Home() {
       (card.tagline && card.tagline.toLowerCase().includes(query))
     );
   });
+
+  if (loading || !isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="w-10 h-10 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <main id="main-landing" className="min-h-screen bg-slate-50 py-12 px-4 md:px-8 font-sans text-slate-800 relative">

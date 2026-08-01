@@ -53,8 +53,3 @@ export async function signOut(): Promise<{ success: boolean }> {
   }
 }
 
-// Backward-compatibility fallback export
-export async function logout(): Promise<void> {
-  await signOut();
-}
-

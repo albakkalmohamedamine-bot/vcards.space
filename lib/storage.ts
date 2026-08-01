@@ -111,16 +111,22 @@ async function uploadBase64ToSupabaseStorage(fileData: string, prefix: string): 
     let contentType = 'application/octet-stream';
     let bytes: Uint8Array | null = null;
     let ext = 'png';
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'application/pdf', 'image/gif'];
 
     if (fileData.startsWith('data:')) {
       const matches = fileData.match(/^data:(.+);base64,(.+)$/);
       if (matches && matches.length === 3) {
-        contentType = matches[1];
+        contentType = matches[1].toLowerCase();
+        if (!allowedTypes.includes(contentType)) {
+          throw new Error(`Invalid file type: ${contentType}`);
+        }
         const base64String = matches[2];
         if (contentType.includes('pdf')) ext = 'pdf';
         else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = 'jpg';
         else if (contentType.includes('webp')) ext = 'webp';
         else if (contentType.includes('svg')) ext = 'svg';
+        else if (contentType.includes('gif')) ext = 'gif';
+        else if (contentType.includes('png')) ext = 'png';
 
         const binaryStr = atob(base64String);
         const len = binaryStr.length;
@@ -134,16 +140,22 @@ async function uploadBase64ToSupabaseStorage(fileData: string, prefix: string): 
         const res = await fetch(fileData);
         if (res.ok) {
           const blob = await res.blob();
-          contentType = blob.type || 'application/pdf';
+          contentType = (blob.type || 'application/pdf').toLowerCase();
+          if (!allowedTypes.includes(contentType)) {
+            throw new Error(`Invalid file type: ${contentType}`);
+          }
           if (contentType.includes('pdf')) ext = 'pdf';
           else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = 'jpg';
           else if (contentType.includes('webp')) ext = 'webp';
           else if (contentType.includes('svg')) ext = 'svg';
+          else if (contentType.includes('gif')) ext = 'gif';
+          else if (contentType.includes('png')) ext = 'png';
           const buffer = await blob.arrayBuffer();
           bytes = new Uint8Array(buffer);
         }
       } catch (err) {
         console.warn('Could not fetch blob URL:', err);
+        throw err;
       }
     }
 
@@ -422,57 +434,80 @@ export async function generateUniqueSlug(baseSlug: string, originalSlug?: string
   return `${cleanBase}-${counter}`;
 }
 
+async function processCardAssets(card: BusinessCard, targetSlug: string): Promise<BusinessCard> {
+  let uploadedLogo = card.logo;
+  if (uploadedLogo && (uploadedLogo.startsWith('data:') || uploadedLogo.startsWith('blob:'))) {
+    uploadedLogo = await uploadBase64ToSupabaseStorage(uploadedLogo, `${targetSlug}-logo`);
+  }
+
+  let uploadedPdf = card.menu_pdf;
+  if (uploadedPdf && (uploadedPdf.startsWith('data:') || uploadedPdf.startsWith('blob:'))) {
+    uploadedPdf = await uploadBase64ToSupabaseStorage(uploadedPdf, `${targetSlug}-menu`);
+  }
+
+  return {
+    ...card,
+    slug: targetSlug,
+    logo: uploadedLogo,
+    menu_pdf: uploadedPdf,
+    landline: card.landline || '',
+    avatar_border_radius: card.avatar_border_radius ?? 50,
+    address_type: card.address_type || 'address',
+    google_maps: card.google_maps || ''
+  };
+}
+
+async function performDatabaseOperation(row: any, originalSlug?: string) {
+  let query = supabase.from('business_cards');
+  let result;
+  
+  if (originalSlug) {
+    result = await query.update(row).eq('slug', originalSlug);
+  } else {
+    result = await query.insert(row);
+  }
+  
+  let { error: dbError } = result;
+
+  if (dbError && (dbError.message?.includes('wifi_password') || dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
+    const fallbackRow: any = { ...row };
+    delete fallbackRow.wifi_password;
+    delete fallbackRow.wifi_password_label;
+    
+    let retryQuery = supabase.from('business_cards');
+    const { error: retryError } = originalSlug 
+      ? await retryQuery.update(fallbackRow).eq('slug', originalSlug)
+      : await retryQuery.insert(fallbackRow);
+      
+    if (!retryError) {
+      dbError = null;
+    }
+  }
+
+  if (dbError) {
+    console.error(`Supabase DB ${originalSlug ? 'Update' : 'Insert'} error:`, dbError);
+  }
+  
+  return dbError;
+}
+
 export async function saveCard(newCard: BusinessCard): Promise<{ success: boolean; error?: string; finalSlug?: string }> {
   try {
     const uniqueSlug = await generateUniqueSlug(newCard.slug);
-
-    let uploadedLogo = newCard.logo;
-    if (uploadedLogo && (uploadedLogo.startsWith('data:') || uploadedLogo.startsWith('blob:'))) {
-      uploadedLogo = await uploadBase64ToSupabaseStorage(uploadedLogo, `${uniqueSlug}-logo`);
-    }
-
-    let uploadedPdf = newCard.menu_pdf;
-    if (uploadedPdf && (uploadedPdf.startsWith('data:') || uploadedPdf.startsWith('blob:'))) {
-      uploadedPdf = await uploadBase64ToSupabaseStorage(uploadedPdf, `${uniqueSlug}-menu`);
-    }
-
-    const cardToSave: BusinessCard = {
-      ...newCard,
-      slug: uniqueSlug,
-      logo: uploadedLogo,
-      menu_pdf: uploadedPdf,
-      landline: newCard.landline || '',
-      avatar_border_radius: newCard.avatar_border_radius ?? 50,
-      address_type: newCard.address_type || 'address',
-      google_maps: newCard.google_maps || ''
-    };
-
+    const cardToSave = await processCardAssets(newCard, uniqueSlug);
     const row = mapCardToRow(cardToSave);
-    let { error: dbError } = await supabase
-      .from('business_cards')
-      .insert(row);
-
-    if (dbError && (dbError.message?.includes('wifi_password') || dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
-      const fallbackRow: any = { ...row };
-      delete fallbackRow.wifi_password;
-      delete fallbackRow.wifi_password_label;
-      const { error: retryError } = await supabase
-        .from('business_cards')
-        .insert(fallbackRow);
-      if (!retryError) {
-        dbError = null;
-      }
-    }
+    
+    const dbError = await performDatabaseOperation(row);
 
     if (dbError) {
-      console.error('Supabase DB Insert error:', dbError);
+      return { success: false, error: dbError.message || 'Network error or database failure. Please try again.' };
     }
 
     const cards = await getCards();
     const updatedCards = [cardToSave, ...cards.filter(c => c.slug !== uniqueSlug)];
     await persistCards(updatedCards);
 
-    return { success: true, finalSlug: uniqueSlug, error: dbError ? dbError.message : undefined };
+    return { success: true, finalSlug: uniqueSlug };
   } catch (err: any) {
     console.error('Error saving card:', err);
     return { success: false, error: err?.message || 'Failed to save card.' };
@@ -482,49 +517,13 @@ export async function saveCard(newCard: BusinessCard): Promise<{ success: boolea
 export async function updateCard(originalSlug: string, updatedCard: BusinessCard): Promise<{ success: boolean; error?: string; finalSlug?: string }> {
   try {
     const targetSlug = await generateUniqueSlug(updatedCard.slug, originalSlug);
-
-    let uploadedLogo = updatedCard.logo;
-    if (uploadedLogo && (uploadedLogo.startsWith('data:') || uploadedLogo.startsWith('blob:'))) {
-      uploadedLogo = await uploadBase64ToSupabaseStorage(uploadedLogo, `${targetSlug}-logo`);
-    }
-
-    let uploadedPdf = updatedCard.menu_pdf;
-    if (uploadedPdf && (uploadedPdf.startsWith('data:') || uploadedPdf.startsWith('blob:'))) {
-      uploadedPdf = await uploadBase64ToSupabaseStorage(uploadedPdf, `${targetSlug}-menu`);
-    }
-
-    const cardToUpdate: BusinessCard = {
-      ...updatedCard,
-      slug: targetSlug,
-      logo: uploadedLogo,
-      menu_pdf: uploadedPdf,
-      landline: updatedCard.landline || '',
-      avatar_border_radius: updatedCard.avatar_border_radius ?? 50,
-      address_type: updatedCard.address_type || 'address',
-      google_maps: updatedCard.google_maps || ''
-    };
-
+    const cardToUpdate = await processCardAssets(updatedCard, targetSlug);
     const row = mapCardToRow(cardToUpdate);
-    let { error: dbError } = await supabase
-      .from('business_cards')
-      .update(row)
-      .eq('slug', originalSlug);
-
-    if (dbError && (dbError.message?.includes('wifi_password') || dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
-      const fallbackRow: any = { ...row };
-      delete fallbackRow.wifi_password;
-      delete fallbackRow.wifi_password_label;
-      const { error: retryError } = await supabase
-        .from('business_cards')
-        .update(fallbackRow)
-        .eq('slug', originalSlug);
-      if (!retryError) {
-        dbError = null;
-      }
-    }
+    
+    const dbError = await performDatabaseOperation(row, originalSlug);
 
     if (dbError) {
-      console.error('Supabase DB Update error:', dbError);
+      return { success: false, error: dbError.message || 'Network error or database failure. Please try again.' };
     }
 
     const cards = await getCards();
@@ -539,7 +538,7 @@ export async function updateCard(originalSlug: string, updatedCard: BusinessCard
     }
 
     await persistCards(updatedCards);
-    return { success: true, finalSlug: targetSlug, error: dbError ? dbError.message : undefined };
+    return { success: true, finalSlug: targetSlug };
   } catch (err: any) {
     console.error('Error updating card:', err);
     return { success: false, error: err?.message || 'Failed to update card.' };

@@ -123,6 +123,7 @@ async function fetchAsDataUrl(url: string): Promise<string> {
 export default function AdminPage() {
   const router = useRouter();
   
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [existingSlugs, setExistingSlugs] = useState<string[]>([]);
   const [allCards, setAllCards] = useState<BusinessCard[]>([]);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
@@ -185,6 +186,7 @@ export default function AdminPage() {
 
   const [slug, setSlug] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [successCard, setSuccessCard] = useState<BusinessCard | null>(null);
   const [copied, setCopied] = useState(false);
@@ -333,9 +335,12 @@ export default function AdminPage() {
       if (!isMounted) return;
 
       if (!session) {
+        setIsAuthenticated(false);
         router.replace('/login');
         return;
       }
+
+      setIsAuthenticated(true);
 
       getCards().then((cards) => {
         if (!isMounted) return;
@@ -1157,12 +1162,14 @@ export default function AdminPage() {
     };
 
     setCardToConfirm(newCard);
+    setModalError(null);
     setShowConfirmModal(true);
   };
 
   const handleConfirmSave = async () => {
     if (!cardToConfirm) return;
     setIsSaving(true);
+    setModalError(null);
 
     const result = await (editingSlug ? updateCard(editingSlug, cardToConfirm) : saveCard(cardToConfirm));
     setIsSaving(false);
@@ -1224,10 +1231,10 @@ export default function AdminPage() {
         // ignore
       }
       setIsDraftRestored(false);
+      setShowConfirmModal(false);
     } else {
-      setError(result.error || 'Failed to save card.');
+      setModalError(result.error || 'Failed to save card. Please check your network connection and try again.');
     }
-    setShowConfirmModal(false);
   };
 
   const handleConfirmDelete = async () => {
@@ -1276,6 +1283,14 @@ export default function AdminPage() {
         extractedColors.lightMuted,
       ].filter(Boolean) as ColorSwatch[])
     : defaultSwatches;
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4">
+        <div className="w-10 h-10 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100/70 p-4 sm:p-6 md:p-8 font-sans antialiased text-slate-800">
@@ -3523,6 +3538,13 @@ export default function AdminPage() {
                 <p className="text-sm text-slate-500 mb-6 text-center leading-relaxed">
                   Are you sure you want to {editingSlug ? 'save changes to' : 'completely add'} this digital card? Please review the details below.
                 </p>
+
+                {modalError && (
+                  <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-xl text-red-800 text-sm flex items-start gap-2">
+                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                    <span>{modalError}</span>
+                  </div>
+                )}
 
                 <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/50 text-left mb-6 space-y-3">
                   <div className="flex justify-between items-center border-b border-slate-200/50 pb-2">
