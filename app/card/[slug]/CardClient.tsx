@@ -2,9 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { getCardBySlug } from '@/lib/storage';
-import { BusinessCard, PrimaryActionType } from '@/lib/types';
+import { BusinessCard, PrimaryActionType, BusinessLanguage } from '@/lib/types';
 import { getCardTranslation } from '@/lib/translations';
 import { downloadVCard, downloadDeliveryVCard } from '@/lib/vcard';
 import { GoogleLogo } from '@/components/GoogleLogo';
@@ -38,8 +37,7 @@ import {
   Info,
   Wifi,
   Truck,
-  SearchX,
-  Home
+  SearchX
 } from 'lucide-react';
 
 const MotorcycleDeliveryIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
@@ -238,7 +236,36 @@ export default function CardClient({
     }
   };
 
+  const getLocalizedRowLabel = (customLabel: string | undefined, key: keyof ReturnType<typeof getCardTranslation>['defaultRowLabels'], lang: BusinessLanguage = 'en') => {
+    const t = getCardTranslation(lang);
+    const defaultVal = t.defaultRowLabels[key];
+    if (!customLabel || customLabel.trim() === '') return defaultVal;
+    
+    // Standard default strings across languages that should auto-translate when language is changed
+    const isStandardDefault = [
+      'Our Menu', 'Our Menu (PDF)', 'Notre Menu', 'Notre Carte / Menu', 'القائمة',
+      'WiFi Password', 'Mot de passe Wi-Fi', 'كلمة سر الواي فاي',
+      'Instagram', 'إنستغرام',
+      'Facebook', 'فيسبوك',
+      'TikTok', 'تيك توك',
+      'WhatsApp', 'واتساب',
+      'Email Us', 'Email', 'Envoyer un e-mail', 'إرسال بريد إلكتروني', 'راسلنا عبر البريد',
+      'Our Location', 'Location', 'Adresse', 'Notre Emplacement', 'موقعنا',
+      'Visit Website', 'Site Web', 'الموقع الإلكتروني',
+      'Call Mobile', 'Mobile', 'اتصل بالجوال',
+      'Office Line', 'Call Office Line', 'Ligne Fixe', 'الهاتف الثابت',
+      'Delivery', 'Livraison', 'خدمة التوصيل',
+      'Rate Us / Leave 5 Stars', 'Donnez votre avis (5 étoiles)', 'تقييمنا (5 نجوم)'
+    ].includes(customLabel.trim());
+
+    if (isStandardDefault) return defaultVal;
+    return customLabel;
+  };
+
   const getBusinessRows = (c: BusinessCard) => {
+    const cardLang = c.language || 'en';
+    const t = getCardTranslation(cardLang);
+
     const rows: {
       id: string;
       label: string;
@@ -250,10 +277,11 @@ export default function CardClient({
 
     if (c.menu_pdf) {
       const pdfUrl = c.menu_pdf;
+      const menuLabel = getLocalizedRowLabel(c.menu_label, 'menu', cardLang);
       if (pdfUrl.startsWith('data:')) {
         rows.push({
           id: 'menu_pdf',
-          label: c.menu_label || 'Our Menu (PDF)',
+          label: menuLabel,
           icon: <FileText className="w-5 h-5" />,
           onClick: () => {
             try {
@@ -276,7 +304,7 @@ export default function CardClient({
       } else {
         rows.push({
           id: 'menu_pdf',
-          label: c.menu_label || 'Our Menu (PDF)',
+          label: menuLabel,
           icon: <FileText className="w-5 h-5" />,
           url: pdfUrl,
         });
@@ -286,7 +314,7 @@ export default function CardClient({
     if (c.wifi_password) {
       rows.push({
         id: 'wifi_password',
-        label: copiedWifi ? 'Copied!' : (c.wifi_password_label || 'WiFi Password'),
+        label: copiedWifi ? t.copied : getLocalizedRowLabel(c.wifi_password_label, 'wifi', cardLang),
         icon: copiedWifi ? <Check className="w-5 h-5" /> : <Wifi className="w-5 h-5" />,
         onClick: async () => {
           if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -305,7 +333,7 @@ export default function CardClient({
     if (c.instagram) {
       rows.push({
         id: 'instagram',
-        label: c.instagram_label || 'Instagram',
+        label: getLocalizedRowLabel(c.instagram_label, 'instagram', cardLang),
         icon: <Instagram className="w-5 h-5" />,
         url: c.instagram.startsWith('http') ? c.instagram : `https://instagram.com/${c.instagram.replace('@', '')}`,
       });
@@ -314,7 +342,7 @@ export default function CardClient({
     if (c.facebook) {
       rows.push({
         id: 'facebook',
-        label: c.facebook_label || 'Facebook',
+        label: getLocalizedRowLabel(c.facebook_label, 'facebook', cardLang),
         icon: <Facebook className="w-5 h-5" />,
         url: c.facebook.startsWith('http') ? c.facebook : `https://facebook.com/${c.facebook}`,
       });
@@ -323,7 +351,7 @@ export default function CardClient({
     if (c.tiktok) {
       rows.push({
         id: 'tiktok',
-        label: c.tiktok_label || 'TikTok',
+        label: getLocalizedRowLabel(c.tiktok_label, 'tiktok', cardLang),
         icon: (
           <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
             <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.68 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.33-6.33V9.05a8.16 8.16 0 0 0 4.92 1.58V7.18a4.85 4.85 0 0 1-1-.49z"/>
@@ -336,7 +364,7 @@ export default function CardClient({
     if (c.whatsapp) {
       rows.push({
         id: 'whatsapp',
-        label: c.whatsapp_label || 'WhatsApp',
+        label: getLocalizedRowLabel(c.whatsapp_label, 'whatsapp', cardLang),
         icon: getActionIcon('whatsapp', 'w-5 h-5'),
         url: `https://wa.me/${c.whatsapp.replace(/\D/g, '')}`,
       });
@@ -345,7 +373,7 @@ export default function CardClient({
     if (c.email) {
       rows.push({
         id: 'email',
-        label: c.email_label || 'Email Us',
+        label: getLocalizedRowLabel(c.email_label, 'email', cardLang),
         icon: <Mail className="w-5 h-5" />,
         url: `mailto:${c.email}`,
       });
@@ -355,7 +383,7 @@ export default function CardClient({
       const mapsUrl = c.google_maps || `https://maps.google.com/?q=${encodeURIComponent(c.address)}`;
       rows.push({
         id: 'address',
-        label: c.localisation_label || c.address,
+        label: getLocalizedRowLabel(c.localisation_label, 'address', cardLang),
         icon: <MapPin className="w-5 h-5" />,
         url: mapsUrl,
       });
@@ -364,7 +392,7 @@ export default function CardClient({
     if (c.website) {
       rows.push({
         id: 'website',
-        label: c.website_label || 'Visit Website',
+        label: getLocalizedRowLabel(c.website_label, 'website', cardLang),
         icon: <Globe className="w-5 h-5" />,
         url: c.website.startsWith('http') ? c.website : `https://${c.website}`,
       });
@@ -373,7 +401,7 @@ export default function CardClient({
     if (c.phone) {
       rows.push({
         id: 'phone',
-        label: c.mobile_label || 'Call Mobile',
+        label: getLocalizedRowLabel(c.mobile_label, 'phone', cardLang),
         icon: <Phone className="w-5 h-5" />,
         url: `tel:${c.phone}`,
       });
@@ -382,7 +410,7 @@ export default function CardClient({
     if (c.landline) {
       rows.push({
         id: 'landline',
-        label: c.landline_label || 'Call Office Line',
+        label: getLocalizedRowLabel(c.landline_label, 'landline', cardLang),
         icon: <PhoneCall className="w-5 h-5" />,
         url: `tel:${c.landline}`,
       });
@@ -391,7 +419,7 @@ export default function CardClient({
     if (c.delivery_enabled && c.delivery_number) {
       rows.push({
         id: 'delivery',
-        label: c.delivery_label || 'Delivery',
+        label: getLocalizedRowLabel(c.delivery_label, 'delivery', cardLang),
         icon: <MotorcycleDeliveryIcon className="w-5 h-5" />,
         onClick: () => setShowDeliveryModal(true),
       });
@@ -402,7 +430,7 @@ export default function CardClient({
       const reviewUrl = c.review_url?.trim() || c.google_maps?.trim() || (c.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}` : '') || 'https://maps.google.com';
       rows.push({
         id: 'rate_us',
-        label: c.rate_us_label || 'Rate Us / Leave 5 Stars',
+        label: getLocalizedRowLabel(c.rate_us_label, 'rateUs', cardLang),
         isRateUs: true,
         icon: <Star className="w-5 h-5 fill-amber-400 text-amber-400" />,
         url: reviewUrl,
@@ -459,47 +487,34 @@ export default function CardClient({
   };
 
   if (loading) {
+    const t = getCardTranslation('en');
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 rounded-full border-4 border-slate-200 border-t-indigo-600 animate-spin" />
-          <p className="text-slate-500 font-mono text-sm tracking-wider uppercase">Loading Card...</p>
+          <p className="text-slate-500 font-mono text-sm tracking-wider uppercase">{t.loadingCard}</p>
         </div>
       </div>
     );
   }
 
   if (!card) {
+    const t = getCardTranslation('en');
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-lg border border-slate-200 text-center flex flex-col items-center">
           <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mb-5 border border-red-100 shadow-xs">
             <SearchX className="w-8 h-8" />
           </div>
-          <h1 className="font-serif text-2xl font-bold text-slate-900 mb-2">Card Not Found</h1>
+          <h1 className="font-serif text-2xl font-bold text-slate-900 mb-2">{t.cardNotFoundTitle}</h1>
           <p className="text-slate-500 text-sm mb-4 leading-relaxed">
-            The digital business card you are looking for does not exist or may have been removed.
+            {t.cardNotFoundDesc}
           </p>
           {slug && (
-            <div className="mb-6 px-3.5 py-1.5 bg-slate-100 rounded-xl text-slate-600 font-mono text-xs border border-slate-200 break-all max-w-full">
-              Requested URL: <span className="font-bold text-slate-900">/card/{slug}</span>
+            <div className="px-3.5 py-1.5 bg-slate-100 rounded-xl text-slate-600 font-mono text-xs border border-slate-200 break-all max-w-full">
+              {t.requestedUrl} <span className="font-bold text-slate-900">/card/{slug}</span>
             </div>
           )}
-          <div className="flex flex-col sm:flex-row gap-3 w-full">
-            <Link
-              href="/"
-              className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm transition-all shadow-sm active:scale-95"
-            >
-              <Home className="w-4 h-4" />
-              Go to Home
-            </Link>
-            <Link
-              href="/admin"
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-all active:scale-95 border border-slate-200"
-            >
-              Admin Dashboard
-            </Link>
-          </div>
         </div>
       </div>
     );
@@ -1115,13 +1130,13 @@ export default function CardClient({
                   <div>
                     <h3 className="font-serif font-bold text-lg text-slate-900 tracking-tight">
                       {shortcutMode === 'choice' 
-                        ? (card ? getCardTranslation(card.language || 'en').saveContact : 'Save Options') 
-                        : (getCardTranslation(card?.language || 'en').addShortcutOption || 'Add Shortcut')}
+                        ? getCardTranslation(card?.language || 'en').saveModal.title 
+                        : getCardTranslation(card?.language || 'en').saveModal.addShortcutTitle}
                     </h3>
                     <p className="text-xs text-slate-500 font-sans">
                       {shortcutMode === 'choice' 
-                        ? 'Select how you want to save this card' 
-                        : 'Follow the steps for your device'}
+                        ? getCardTranslation(card?.language || 'en').saveModal.subtitle 
+                        : getCardTranslation(card?.language || 'en').saveModal.addShortcutSubtitle}
                     </p>
                   </div>
                 </div>
@@ -1156,10 +1171,10 @@ export default function CardClient({
                       </div>
                       <div>
                         <p className="font-bold text-sm text-slate-900 group-hover:text-slate-900">
-                          {getCardTranslation(card?.language || 'en').saveContactOption || 'Save Contact to Device'}
+                          {getCardTranslation(card?.language || 'en').saveContactOption}
                         </p>
                         <p className="text-xs text-slate-500 mt-0.5 leading-snug">
-                          {getCardTranslation(card?.language || 'en').saveContactDesc || 'Download .vcf contact card directly into phonebook.'}
+                          {getCardTranslation(card?.language || 'en').saveContactDesc}
                         </p>
                       </div>
                     </div>
@@ -1198,10 +1213,10 @@ export default function CardClient({
                       </div>
                       <div>
                         <p className="font-bold text-sm text-slate-900">
-                          {getCardTranslation(card?.language || 'en').addShortcutOption || 'Add Shortcut to Home Screen'}
+                          {getCardTranslation(card?.language || 'en').addShortcutOption}
                         </p>
                         <p className="text-xs text-slate-500 mt-0.5 leading-snug">
-                          {getCardTranslation(card?.language || 'en').addShortcutDesc || 'Access card instantly like an app from your home screen.'}
+                          {getCardTranslation(card?.language || 'en').addShortcutDesc}
                         </p>
                       </div>
                     </button>
@@ -1216,7 +1231,7 @@ export default function CardClient({
                           setShortcutMode('instructions');
                         }}
                         className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors shrink-0 cursor-pointer ml-1"
-                        title="View manual guide"
+                        title={getCardTranslation(card?.language || 'en').saveModal.viewManualGuide}
                       >
                         <Info className="w-5 h-5 text-amber-500" />
                       </button>
@@ -1253,47 +1268,23 @@ export default function CardClient({
                   {/* Step-by-step Guides */}
                   {deviceType === 'ios' && (
                     <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-100 text-xs text-slate-700 leading-relaxed">
-                      <div className="flex items-start gap-3">
-                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">1</span>
-                        <p>
-                          Tap the <span className="font-bold text-slate-900">Share button</span> <Share2 className="w-3.5 h-3.5 inline text-sky-600 mx-0.5" /> at the bottom of Safari browser.
-                        </p>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">2</span>
-                        <p>
-                          Scroll down the list and select <span className="font-bold text-slate-900">"Add to Home Screen"</span> <PlusSquare className="w-3.5 h-3.5 inline text-slate-800 mx-0.5" />.
-                        </p>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">3</span>
-                        <p>
-                          Tap <span className="font-bold text-slate-900">"Add"</span> in top right to pin the card to your home screen!
-                        </p>
-                      </div>
+                      {getCardTranslation(card?.language || 'en').saveModal.iosSteps.map((stepText, idx) => (
+                        <div key={`ios-step-${idx}`} className="flex items-start gap-3">
+                          <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">{idx + 1}</span>
+                          <p>{stepText}</p>
+                        </div>
+                      ))}
                     </div>
                   )}
 
                   {deviceType === 'android' && (
                     <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-100 text-xs text-slate-700 leading-relaxed">
-                      <div className="flex items-start gap-3">
-                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">1</span>
-                        <p>
-                          Tap the <span className="font-bold text-slate-900">Three Dots menu</span> <MoreVertical className="w-3.5 h-3.5 inline text-slate-800 mx-0.5" /> in top right corner of Chrome.
-                        </p>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">2</span>
-                        <p>
-                          Select <span className="font-bold text-slate-900">"Add to Home screen"</span> or <span className="font-bold text-slate-900">"Install app"</span>.
-                        </p>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">3</span>
-                        <p>
-                          Confirm by tapping <span className="font-bold text-slate-900">"Add"</span>.
-                        </p>
-                      </div>
+                      {getCardTranslation(card?.language || 'en').saveModal.androidSteps.map((stepText, idx) => (
+                        <div key={`android-step-${idx}`} className="flex items-start gap-3">
+                          <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">{idx + 1}</span>
+                          <p>{stepText}</p>
+                        </div>
+                      ))}
                     </div>
                   )}
 
@@ -1303,7 +1294,7 @@ export default function CardClient({
                     className="w-full py-3 px-4 rounded-xl font-bold text-xs text-white transition-all shadow-xs cursor-pointer mt-2"
                     style={{ backgroundColor: themeColor }}
                   >
-                    Got it
+                    {getCardTranslation(card?.language || 'en').saveModal.gotIt}
                   </button>
                 </div>
               )}
@@ -1339,19 +1330,19 @@ export default function CardClient({
               </div>
 
               <h3 className="text-xl font-extrabold text-slate-900 mb-1">
-                {card.delivery_label || 'Delivery Contact'}
+                {getLocalizedRowLabel(card.delivery_label, 'delivery', card.language || 'en')}
               </h3>
 
               <p className="text-sm text-slate-600 mb-4 px-1 leading-relaxed">
-                Do you want to download the delivery contact for <span className="font-bold text-slate-900">{card.name}</span> to your phone?
+                {getCardTranslation(card.language || 'en').deliveryModal.question(card.name)}
               </p>
 
               <div className="w-full bg-slate-50 rounded-2xl p-3.5 mb-5 border border-slate-100 flex flex-col items-center gap-1">
                 <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-slate-400">
-                  Contact Name in Phone
+                  {getCardTranslation(card.language || 'en').deliveryModal.contactNameLabel}
                 </span>
                 <span className="font-bold text-sm text-slate-800 break-all">
-                  {card.name} / {card.delivery_label || 'Delivery'}
+                  {card.name} / {getLocalizedRowLabel(card.delivery_label, 'delivery', card.language || 'en')}
                 </span>
                 {card.delivery_number && (
                   <span className="text-xs font-mono font-semibold text-slate-500 mt-0.5">
@@ -1371,7 +1362,7 @@ export default function CardClient({
                   style={{ backgroundColor: themeColor }}
                 >
                   <Download className="w-4 h-4" />
-                  Confirm Download
+                  {getCardTranslation(card.language || 'en').deliveryModal.confirmDownload}
                 </button>
 
                 {card.delivery_number && (
@@ -1381,7 +1372,7 @@ export default function CardClient({
                     className="w-full py-3 px-5 rounded-2xl text-slate-700 font-bold text-xs bg-slate-100 hover:bg-slate-200 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
                   >
                     <Phone className="w-3.5 h-3.5" />
-                    Call Delivery Directly ({card.delivery_number})
+                    {getCardTranslation(card.language || 'en').deliveryModal.callDirectly(card.delivery_number)}
                   </a>
                 )}
 
@@ -1390,7 +1381,7 @@ export default function CardClient({
                   onClick={() => setShowDeliveryModal(false)}
                   className="w-full py-2 px-5 rounded-2xl text-slate-500 font-semibold text-xs hover:text-slate-700 transition-colors cursor-pointer"
                 >
-                  Cancel
+                  {getCardTranslation(card.language || 'en').deliveryModal.cancel}
                 </button>
               </div>
             </motion.div>
