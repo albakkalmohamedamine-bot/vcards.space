@@ -52,5 +52,10 @@ export interface BusinessCard {
   rate_us_enabled?: boolean;  // Enables 5 Golden Stars rating button
   review_url?: string;       // Custom Google Review / Rating URL
   rate_us_label?: string;    // Custom label for Rate Us button (Default: "Rate Us")
+
+  // Delivery Settings
+  delivery_enabled?: boolean;
+  delivery_number?: string;
+  delivery_label?: string; // Default: "Delivery"
 }
 

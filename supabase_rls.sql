@@ -114,7 +114,9 @@ USING (bucket_id = 'logos' AND auth.role() = 'authenticated');
 -- ----------------------------------------------------
 ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS wifi_password text;
 ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS wifi_password_label text;
-
+ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS delivery_enabled boolean DEFAULT false;
+ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS delivery_number text;
+ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS delivery_label text;
 
 -- Database Indexing for fast lookups
 CREATE INDEX IF NOT EXISTS idx_business_cards_slug ON business_cards(slug);

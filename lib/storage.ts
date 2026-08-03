@@ -52,6 +52,9 @@ function mapRowToCard(row: any): BusinessCard {
     rate_us_enabled: row.rate_us_enabled ?? true,
     review_url: row.review_url || '',
     rate_us_label: row.rate_us_label || 'Rate Us / Leave 5 Stars',
+    delivery_enabled: row.delivery_enabled ?? false,
+    delivery_number: row.delivery_number || '',
+    delivery_label: row.delivery_label || 'Delivery',
   };
 }
 
@@ -97,6 +100,9 @@ function mapCardToRow(card: BusinessCard) {
     rate_us_enabled: card.rate_us_enabled ?? true,
     review_url: card.review_url || null,
     rate_us_label: card.rate_us_label || null,
+    delivery_enabled: card.delivery_enabled ?? false,
+    delivery_number: card.delivery_number || null,
+    delivery_label: card.delivery_label || null,
   };
 }
 
@@ -330,6 +336,9 @@ function mergeWithLocalCache(fetchedCards: BusinessCard[]): BusinessCard[] {
         ...c,
         wifi_password: c.wifi_password || local.wifi_password || '',
         wifi_password_label: c.wifi_password_label || local.wifi_password_label || 'WiFi Password',
+        delivery_enabled: c.delivery_enabled !== undefined ? Boolean(c.delivery_enabled) : (local.delivery_enabled ?? false),
+        delivery_number: c.delivery_number || local.delivery_number || '',
+        delivery_label: c.delivery_label || local.delivery_label || 'Delivery',
       };
     }
     return c;
@@ -399,6 +408,15 @@ export async function getCardBySlug(slug: string): Promise<BusinessCard | undefi
         }
         if (!card.wifi_password_label && localCard.wifi_password_label) {
           card.wifi_password_label = localCard.wifi_password_label;
+        }
+        if (card.delivery_enabled === undefined && localCard.delivery_enabled !== undefined) {
+          card.delivery_enabled = localCard.delivery_enabled;
+        }
+        if (!card.delivery_number && localCard.delivery_number) {
+          card.delivery_number = localCard.delivery_number;
+        }
+        if (!card.delivery_label && localCard.delivery_label) {
+          card.delivery_label = localCard.delivery_label;
         }
       }
       return card;

@@ -40,6 +40,7 @@ export const TRANSLATIONS = {
     cardNotFoundDesc: "The business card doesn't exist or may have been removed.",
     backToHome: 'Back to Home',
     loadingCard: 'Loading Card...',
+    reviewUs: 'Review us on',
   },
   fr: {
     primaryActions: {
@@ -80,6 +81,7 @@ export const TRANSLATIONS = {
     cardNotFoundDesc: "La carte de visite n'existe pas ou a été supprimée.",
     backToHome: "Retour à l'accueil",
     loadingCard: 'Chargement de la carte...',
+    reviewUs: 'Laissez un avis sur',
   },
   ar: {
     primaryActions: {
@@ -120,6 +122,7 @@ export const TRANSLATIONS = {
     cardNotFoundDesc: 'بطاقة الأعمال غير موجودة أو تم حذفها.',
     backToHome: 'العودة للرئيسية',
     loadingCard: 'جاري تحميل البطاقة...',
+    reviewUs: 'قيّمنا على',
   },
 };
 

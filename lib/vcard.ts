@@ -38,3 +38,28 @@ export function downloadVCard(card: BusinessCard) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+export function downloadDeliveryVCard(card: BusinessCard) {
+  const name = card.name || 'Contact';
+  const label = card.delivery_label || 'Delivery';
+  
+  const contactName = `${name} / ${label}`;
+  const phone = card.delivery_number ? card.delivery_number.trim() : '';
+
+  let vcard = `BEGIN:VCARD\nVERSION:3.0\nN:;${contactName};;;\nFN:${contactName}\n`;
+  if (name) vcard += `ORG:${name}\n`;
+  vcard += `TITLE:${label}\n`;
+  if (phone) vcard += `TEL;TYPE=CELL,VOICE:${phone}\n`;
+  vcard += `END:VCARD`;
+
+  const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const safeFilename = `${name}_${label}`.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'delivery_contact';
+  link.download = `${safeFilename}.vcf`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}

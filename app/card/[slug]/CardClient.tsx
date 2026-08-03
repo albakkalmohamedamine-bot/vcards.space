@@ -6,9 +6,9 @@ import Link from 'next/link';
 import { getCardBySlug } from '@/lib/storage';
 import { BusinessCard, PrimaryActionType } from '@/lib/types';
 import { getCardTranslation } from '@/lib/translations';
-import { downloadVCard } from '@/lib/vcard';
+import { downloadVCard, downloadDeliveryVCard } from '@/lib/vcard';
 import { GoogleLogo } from '@/components/GoogleLogo';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
 import { 
   Phone, 
   PhoneCall,
@@ -36,8 +36,25 @@ import {
   BookmarkPlus,
   HelpCircle,
   Info,
-  Wifi
+  Wifi,
+  Truck,
+  SearchX,
+  Home
 } from 'lucide-react';
+
+const MotorcycleDeliveryIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 8h3" />
+    <path d="M0.5 12h2.5" />
+    <path d="M1.5 16h2" />
+    <circle cx="7.5" cy="17.5" r="2.25" />
+    <circle cx="18.5" cy="17.5" r="2.25" />
+    <rect x="5" y="8" width="4" height="4.5" rx="0.5" fill="currentColor" fillOpacity="0.2" />
+    <path d="M7.5 17.5h6l2.5-6h-3.5" />
+    <path d="M12.5 17.5l1.5-3.5h3" />
+    <path d="M14.5 9l2 2.5h2" />
+  </svg>
+);
 
 const ACTION_OPTIONS = [
   { value: 'website', label: 'Visit Website' },
@@ -51,16 +68,45 @@ const ACTION_OPTIONS = [
   { value: 'tiktok', label: 'View TikTok' },
 ];
 
-export default function CardClient({ slug, initialCard }: { slug: string, initialCard?: BusinessCard | null }) {
+export default function CardClient({ 
+  slug, 
+  initialCard,
+  previewCard,
+  isPreview = false
+}: { 
+  slug?: string, 
+  initialCard?: BusinessCard | null,
+  previewCard?: Partial<BusinessCard>,
+  isPreview?: boolean
+}) {
   const router = useRouter();
-  const [card, setCard] = useState<BusinessCard | null>(initialCard || null);
-  const [loading, setLoading] = useState(!initialCard);
+  const [internalCard, setInternalCard] = useState<BusinessCard | null>(initialCard || null);
+  const card = (previewCard || internalCard) as BusinessCard | null;
+  const [isFetching, setIsFetching] = useState(!previewCard && !initialCard);
+  const loading = !previewCard && isFetching && !internalCard;
   const [copied, setCopied] = useState(false);
   const [copiedWifi, setCopiedWifi] = useState(false);
   const [islandState, setIslandState] = useState<'idle' | 'dot' | 'expanded' | 'collapsed' | 'hidden'>('idle');
 
+  // Scroll animations for Professional layout
+  const { scrollY } = useScroll();
+  const isDesign2 = (card?.layout || 'design1') === 'design2';
+  
+  const avatarScale = useTransform(scrollY, [0, 100], [1, isDesign2 ? (40/192) : (40/176)]);
+  const avatarY = useTransform(scrollY, [0, 100], [0, isDesign2 ? -68 : -60]);
+  const avatarX = useTransform(scrollY, [0, 100], [0, -82]);
+
+  const pillOpacity = useTransform(scrollY, [50, 100], [0, 1]);
+  const pillWidth = useTransform(scrollY, [50, 100], ['0px', '220px']);
+  const pillY = useTransform(scrollY, [50, 100], [0, isDesign2 ? -68 : -60]);
+  
+  const nameOpacity = useTransform(scrollY, [70, 100], [0, 1]);
+  const nameX = useTransform(scrollY, [70, 100], [20, 0]);
+  const nameY = useTransform(scrollY, [70, 100], [0, isDesign2 ? -68 : -60]);
+
   // Save Modal & Shortcut States
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [shortcutMode, setShortcutMode] = useState<'choice' | 'instructions'>('choice');
   const [deviceType, setDeviceType] = useState<'ios' | 'android'>('android');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -120,24 +166,24 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
   };
 
   useEffect(() => {
+    if (previewCard) return;
     if (slug) {
-      if (!initialCard) {
-        getCardBySlug(slug).then(foundCard => {
+      getCardBySlug(slug)
+        .then(foundCard => {
           if (foundCard) {
-            setCard(foundCard);
+            setInternalCard(foundCard);
           }
-          setLoading(false);
+        })
+        .catch((err) => {
+          console.warn('Failed to load card:', err);
+        })
+        .finally(() => {
+          setIsFetching(false);
         });
-      } else {
-        // Even if we have the card from the server, fetch on client to merge local data (e.g. wifi password)
-        getCardBySlug(slug).then(foundCard => {
-          if (foundCard) {
-            setCard(foundCard);
-          }
-        });
-      }
+    } else {
+      setIsFetching(false);
     }
-  }, [slug, initialCard]);
+  }, [slug, initialCard, previewCard]);
 
   useEffect(() => {
     if (!loading && card) {
@@ -168,6 +214,8 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
 
   const getActionIcon = (actionType: string, className = "w-4 h-4") => {
     switch (actionType) {
+      case 'delivery_number':
+      case 'delivery': return <MotorcycleDeliveryIcon className={className} />;
       case 'phone': return <Phone className={className} />;
       case 'landline': return <PhoneCall className={className} />;
       case 'whatsapp': return (
@@ -340,6 +388,15 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
       });
     }
 
+    if (c.delivery_enabled && c.delivery_number) {
+      rows.push({
+        id: 'delivery',
+        label: c.delivery_label || 'Delivery',
+        icon: <MotorcycleDeliveryIcon className="w-5 h-5" />,
+        onClick: () => setShowDeliveryModal(true),
+      });
+    }
+
     const showRateUs = c.rate_us_enabled !== false;
     if (showRateUs) {
       const reviewUrl = c.review_url?.trim() || c.google_maps?.trim() || (c.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}` : '') || 'https://maps.google.com';
@@ -378,6 +435,7 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
       return '#';
     }
     switch (actionType) {
+      case 'delivery_number':
       case 'phone': 
       case 'landline': return `tel:${trimmed.replace(/[^0-9+]/g, '')}`;
       case 'whatsapp': {
@@ -413,22 +471,35 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
 
   if (!card) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-sm border border-slate-200 text-center">
-          <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-slate-400">
-            <Globe className="w-8 h-8" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-lg border border-slate-200 text-center flex flex-col items-center">
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mb-5 border border-red-100 shadow-xs">
+            <SearchX className="w-8 h-8" />
           </div>
           <h1 className="font-serif text-2xl font-bold text-slate-900 mb-2">Card Not Found</h1>
-          <p className="text-slate-500 mb-8 leading-relaxed">
-            The digital business card you are looking for does not exist or has been removed.
+          <p className="text-slate-500 text-sm mb-4 leading-relaxed">
+            The digital business card you are looking for does not exist or may have been removed.
           </p>
-          <Link 
-            href="/"
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            View Active Directory
-          </Link>
+          {slug && (
+            <div className="mb-6 px-3.5 py-1.5 bg-slate-100 rounded-xl text-slate-600 font-mono text-xs border border-slate-200 break-all max-w-full">
+              Requested URL: <span className="font-bold text-slate-900">/card/{slug}</span>
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row gap-3 w-full">
+            <Link
+              href="/"
+              className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm transition-all shadow-sm active:scale-95"
+            >
+              <Home className="w-4 h-4" />
+              Go to Home
+            </Link>
+            <Link
+              href="/admin"
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition-all active:scale-95 border border-slate-200"
+            >
+              Admin Dashboard
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -440,13 +511,18 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
   const themeColor = card.themeColor || '#1B2A4A';
   const layout = card.layout || 'design1';
 
+  const MainWrapper = isPreview ? 'div' : 'main';
+  const CardWrapper = isPreview ? 'div' : motion.div;
+
   return (
-    <main className="min-h-screen bg-slate-50 flex flex-col justify-start items-center p-0 sm:p-6 font-sans">
-      <motion.div 
-        initial={{ opacity: 0, y: 24, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-[440px] sm:max-w-[460px] bg-white sm:rounded-[36px] min-h-screen sm:min-h-0 sm:shadow-2xl overflow-hidden relative border-x sm:border border-slate-200/60 pb-6"
+    <MainWrapper className={isPreview ? "w-full h-full font-sans text-slate-900 text-left" : "min-h-screen bg-slate-50 flex flex-col justify-start items-center p-0 sm:p-6 font-sans"}>
+      <CardWrapper 
+        {...(!isPreview ? {
+          initial: { opacity: 0, y: 24, scale: 0.98 },
+          animate: { opacity: 1, y: 0, scale: 1 },
+          transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] }
+        } : {})}
+        className={isPreview ? "w-full bg-white rounded-[28px] overflow-hidden relative border border-slate-100 shadow-xs pb-6 text-left" : "w-full max-w-[440px] sm:max-w-[460px] bg-white sm:rounded-[36px] min-h-screen sm:min-h-0 sm:shadow-2xl overflow-hidden relative border-x sm:border border-slate-200/60 pb-6"}
       >
         
         {/* Dynamic Island Animation for NFC Tap */}
@@ -609,6 +685,9 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
                         transition={{ duration: 0.2, ease: "easeOut" }}
                         className="group relative w-full py-4 sm:py-5 px-6 flex flex-col items-center justify-center bg-transparent cursor-pointer transition-all duration-200 gap-2"
                       >
+                        <span className="text-xs font-bold font-mono tracking-widest text-slate-500 uppercase mb-1">
+                          {getCardTranslation(card.language || 'en').reviewUs}
+                        </span>
                         {/* 5 Big Golden Stars */}
                         <div className="flex items-center gap-1.5 text-amber-400">
                           {[...Array(5)].map((_, i) => (
@@ -679,7 +758,7 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.45, delay: 0.3 + getBusinessRows(card).length * 0.08 + 0.05 }}
-                className="flex items-center justify-center w-full max-w-[220px] sm:max-w-[240px] mx-auto"
+                className="flex flex-col items-center justify-center w-full max-w-[220px] sm:max-w-[240px] mx-auto gap-3"
               >
                 <button 
                   type="button"
@@ -703,7 +782,7 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="h-44 sm:h-48 w-full relative transition-all duration-300" 
+              className="h-32 sm:h-36 w-full relative transition-all duration-300" 
               style={{ backgroundColor: themeColor }}
             >
               <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.4),_transparent_60%)]" />
@@ -718,44 +797,66 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
 
             {/* Profile / Logo Area */}
             <motion.div 
-              initial={{ opacity: 0, scale: 0.82 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className={`relative z-10 flex justify-center px-6 ${
+              className={`sticky top-4 z-40 mx-auto flex items-center justify-center pointer-events-none ${
                 layout === 'design2' ? '-mt-24' : '-mt-20'
               }`}
+              style={{ height: layout === 'design2' ? 192 : 176 }}
             >
-              {(() => {
-                const isCircle = (card.avatar_border_radius ?? 50) >= 45;
-                return (
-                  <div 
-                    className={`flex items-center justify-center bg-white shadow-[0_8px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-300 overflow-hidden border-0 ${
-                      layout === 'design2' ? 'w-40 h-40' : 'w-36 h-36'
-                    }`}
-                    style={{ 
-                      backgroundColor: card.logo ? '#FFFFFF' : themeColor,
-                      borderColor: 'transparent',
-                      borderRadius: isCircle ? '50%' : '22%'
-                    }}
-                  >
-                    {card.logo ? (
-                      <img 
-                        src={card.logo} 
-                        alt={card.name} 
-                        loading="eager"
-                        decoding="async"
-                        className="w-full h-full object-cover p-0" 
-                      />
-                    ) : (
-                      <span className={`font-serif font-bold tracking-tight text-white select-none ${
-                        layout === 'design2' ? 'text-7xl' : 'text-6xl'
-                      }`}>
-                        {card.name ? card.name.charAt(0).toUpperCase() : 'B'}
-                      </span>
-                    )}
-                  </div>
-                );
-              })()}
+              {/* The Pill Background */}
+              <motion.div
+                style={{
+                  opacity: pillOpacity,
+                  width: pillWidth,
+                  height: 56,
+                  y: pillY,
+                }}
+                className="absolute bg-white/90 backdrop-blur-md shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-slate-200/60 rounded-full pointer-events-auto"
+              />
+
+              {/* The Avatar */}
+              <motion.div 
+                className={`relative flex items-center justify-center bg-white shadow-[0_8px_20px_-4px_rgba(0,0,0,0.08)] transition-shadow duration-300 overflow-hidden border-0 pointer-events-auto origin-center ${
+                  layout === 'design2' ? 'w-48 h-48' : 'w-44 h-44'
+                }`}
+                style={{ 
+                  backgroundColor: card.logo ? '#FFFFFF' : themeColor,
+                  borderRadius: (card.avatar_border_radius ?? 50) >= 45 ? '50%' : '22%',
+                  scale: avatarScale,
+                  x: avatarX,
+                  y: avatarY
+                }}
+              >
+                {card.logo ? (
+                  <img 
+                    src={card.logo} 
+                    alt={card.name} 
+                    loading="eager"
+                    decoding="async"
+                    className="w-full h-full object-cover p-0" 
+                  />
+                ) : (
+                  <span className={`font-serif font-bold tracking-tight text-white select-none ${
+                    layout === 'design2' ? 'text-8xl' : 'text-7xl'
+                  }`}>
+                    {card.name ? card.name.charAt(0).toUpperCase() : 'B'}
+                  </span>
+                )}
+              </motion.div>
+
+              {/* The Name in the Pill */}
+              <motion.div
+                style={{
+                  opacity: nameOpacity,
+                  x: nameX,
+                  y: nameY,
+                }}
+                className="absolute left-1/2 ml-[-50px] font-serif font-bold text-slate-900 text-[15px] truncate max-w-[140px] pointer-events-none"
+              >
+                {card.name}
+              </motion.div>
             </motion.div>
 
             {/* Content Area */}
@@ -821,18 +922,48 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
               </div>
 
               <div className="mt-10 border-t border-slate-100 pt-8">
-                <p className="text-[10px] font-mono tracking-[0.2em] text-slate-400 uppercase mb-6 select-none">
+                <p className="text-sm sm:text-[15px] font-extrabold font-mono tracking-[0.2em] text-slate-600 uppercase mb-8 select-none text-center">
                   {getCardTranslation(card.language || 'en').connectWithUs}
                 </p>
                 
-                <div className="grid grid-cols-3 gap-y-6 gap-x-2 justify-items-center max-w-[280px] mx-auto">
+                <div className="grid grid-cols-3 gap-y-7 gap-x-2 justify-items-center max-w-[320px] mx-auto">
                   {(() => {
-                    const secondaryActions = ['phone', 'landline', 'whatsapp', 'email', 'address', 'website', 'instagram', 'facebook', 'tiktok', 'wifi_password']
-                      .filter(k => k !== card.primary_action && Boolean(card[k as keyof typeof card]));
+                    const secondaryActions = ['phone', 'landline', 'whatsapp', 'email', 'address', 'website', 'instagram', 'facebook', 'tiktok', 'wifi_password', 'delivery_number']
+                      .filter(k => {
+                        if (k === 'delivery_number') {
+                          return card.delivery_enabled && Boolean(card.delivery_number);
+                        }
+                        return k !== card.primary_action && Boolean(card[k as keyof typeof card]);
+                      });
 
                     if (secondaryActions.length > 0) {
                       const translations = getCardTranslation(card.language || 'en');
                       return secondaryActions.map((actionKey) => {
+                        if (actionKey === 'delivery_number') {
+                          return (
+                            <button
+                              key={actionKey}
+                              type="button"
+                              onClick={() => setShowDeliveryModal(true)}
+                              className="group flex flex-col items-center w-20 cursor-pointer"
+                            >
+                              <div 
+                                className="w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-md"
+                                style={{ 
+                                  backgroundColor: `${themeColor}08`,
+                                  borderColor: `${themeColor}15`,
+                                  color: themeColor
+                                }}
+                              >
+                                {getActionIcon(actionKey, 'w-6 h-6')}
+                              </div>
+                              <span className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-wide mt-2.5 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
+                                {card.delivery_label || 'Delivery'}
+                              </span>
+                            </button>
+                          );
+                        }
+
                         if (actionKey === 'wifi_password') {
                           return (
                             <button
@@ -849,19 +980,19 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
                                 setCopiedWifi(true);
                                 setTimeout(() => setCopiedWifi(false), 2000);
                               }}
-                              className="group flex flex-col items-center w-16 cursor-pointer"
+                              className="group flex flex-col items-center w-20 cursor-pointer"
                             >
                               <div 
-                                className="w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-md"
+                                className="w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-md"
                                 style={{ 
                                   backgroundColor: `${themeColor}08`,
                                   borderColor: `${themeColor}15`,
                                   color: themeColor
                                 }}
                               >
-                                {copiedWifi ? <Check className="w-5 h-5" /> : <Wifi className="w-5 h-5" />}
+                                {copiedWifi ? <Check className="w-6 h-6" /> : <Wifi className="w-6 h-6" />}
                               </div>
-                              <span className="text-[9px] font-bold text-slate-500 tracking-wide mt-2 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
+                              <span className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-wide mt-2.5 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
                                 {copiedWifi ? 'Copied!' : (card.wifi_password_label || 'WiFi')}
                               </span>
                             </button>
@@ -874,20 +1005,20 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
                             href={getActionHref(actionKey, card[actionKey as keyof typeof card] as string)}
                             target={['whatsapp', 'website', 'instagram', 'facebook', 'tiktok', 'address'].includes(actionKey) ? "_blank" : undefined}
                             rel="noopener noreferrer"
-                            className="group flex flex-col items-center w-16"
+                            className="group flex flex-col items-center w-20"
                           >
                             <div 
-                              className="w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-md"
+                              className="w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-md"
                               style={{ 
                                 backgroundColor: `${themeColor}08`,
                                 borderColor: `${themeColor}15`,
                                 color: themeColor
                               }}
                             >
-                              {getActionIcon(actionKey, 'w-5 h-5')}
+                              {getActionIcon(actionKey, 'w-6 h-6')}
                             </div>
-                            <span className="text-[9px] font-bold text-slate-500 tracking-wide mt-2 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
-                              {translations.smallLabels[actionKey] || translations.smallLabels.default}
+                            <span className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-wide mt-2.5 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
+                              {actionKey === 'delivery_number' ? (card.delivery_label || 'Delivery') : (translations.smallLabels[actionKey] || translations.smallLabels.default)}
                             </span>
                           </a>
                         );
@@ -911,6 +1042,9 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
                       rel="noopener noreferrer"
                       className="group w-full max-w-[280px] py-4 px-5 bg-transparent flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
                     >
+                      <span className="text-xs font-bold font-mono tracking-widest text-slate-500 uppercase mb-1">
+                        {getCardTranslation(card.language || 'en').reviewUs}
+                      </span>
                       {/* 5 Big Golden Stars */}
                       <div className="flex items-center gap-1.5 text-amber-400">
                         {[...Array(5)].map((_, i) => (
@@ -943,7 +1077,7 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
             </span>
           </span>
         </footer>
-      </motion.div>
+      </CardWrapper>
 
       {/* Save Options & Shortcut Modal */}
       <AnimatePresence>
@@ -1177,6 +1311,92 @@ export default function CardClient({ slug, initialCard }: { slug: string, initia
           </div>
         )}
       </AnimatePresence>
-    </main>
+
+      {/* Delivery Contact Download Confirmation Modal */}
+      <AnimatePresence>
+        {showDeliveryModal && card && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center overflow-hidden"
+            >
+              <button
+                type="button"
+                onClick={() => setShowDeliveryModal(false)}
+                className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div 
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-xs"
+                style={{ backgroundColor: `${themeColor}15`, color: themeColor }}
+              >
+                <MotorcycleDeliveryIcon className="w-9 h-9" />
+              </div>
+
+              <h3 className="text-xl font-extrabold text-slate-900 mb-1">
+                {card.delivery_label || 'Delivery Contact'}
+              </h3>
+
+              <p className="text-sm text-slate-600 mb-4 px-1 leading-relaxed">
+                Do you want to download the delivery contact for <span className="font-bold text-slate-900">{card.name}</span> to your phone?
+              </p>
+
+              <div className="w-full bg-slate-50 rounded-2xl p-3.5 mb-5 border border-slate-100 flex flex-col items-center gap-1">
+                <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-slate-400">
+                  Contact Name in Phone
+                </span>
+                <span className="font-bold text-sm text-slate-800 break-all">
+                  {card.name} / {card.delivery_label || 'Delivery'}
+                </span>
+                {card.delivery_number && (
+                  <span className="text-xs font-mono font-semibold text-slate-500 mt-0.5">
+                    📞 {card.delivery_number}
+                  </span>
+                )}
+              </div>
+
+              <div className="w-full flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadDeliveryVCard(card);
+                    setShowDeliveryModal(false);
+                  }}
+                  className="w-full py-3.5 px-5 rounded-2xl text-white font-bold text-sm shadow-md hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  style={{ backgroundColor: themeColor }}
+                >
+                  <Download className="w-4 h-4" />
+                  Confirm Download
+                </button>
+
+                {card.delivery_number && (
+                  <a
+                    href={`tel:${card.delivery_number}`}
+                    onClick={() => setShowDeliveryModal(false)}
+                    className="w-full py-3 px-5 rounded-2xl text-slate-700 font-bold text-xs bg-slate-100 hover:bg-slate-200 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    Call Delivery Directly ({card.delivery_number})
+                  </a>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowDeliveryModal(false)}
+                  className="w-full py-2 px-5 rounded-2xl text-slate-500 font-semibold text-xs hover:text-slate-700 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </MainWrapper>
   );
 }

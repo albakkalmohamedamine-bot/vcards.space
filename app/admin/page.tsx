@@ -6,6 +6,7 @@ import { getCards, saveCard, updateCard, deleteCard, slugify } from '@/lib/stora
 import { getSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { PrimaryActionType, BusinessCard, BusinessLanguage, CardLayout } from '@/lib/types';
+import CardClient from '@/app/card/[slug]/CardClient';
 import { AdminQRCodeGenerator } from '@/components/AdminQRCodeGenerator';
 import { GoogleLogo } from '@/components/GoogleLogo';
 import { ColorSwatch, ExtractedColors, extractColorsFromImage, getBestContrastSwatch, compressLogoImage } from '@/lib/colorExtractor';
@@ -45,8 +46,23 @@ import {
   Upload,
   PhoneCall,
   Star,
-  Wifi
+  Wifi,
+  Truck
 } from 'lucide-react';
+
+const MotorcycleDeliveryIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 8h3" />
+    <path d="M0.5 12h2.5" />
+    <path d="M1.5 16h2" />
+    <circle cx="7.5" cy="17.5" r="2.25" />
+    <circle cx="18.5" cy="17.5" r="2.25" />
+    <rect x="5" y="8" width="4" height="4.5" rx="0.5" fill="currentColor" fillOpacity="0.2" />
+    <path d="M7.5 17.5h6l2.5-6h-3.5" />
+    <path d="M12.5 17.5l1.5-3.5h3" />
+    <path d="M14.5 9l2 2.5h2" />
+  </svg>
+);
 
 const ACTION_OPTIONS: { value: PrimaryActionType; label: string }[] = [
   { value: 'website', label: 'Visit Website' },
@@ -174,6 +190,9 @@ export default function AdminPage() {
     rate_us_enabled: true,
     review_url: '',
     rate_us_label: 'Rate Us / Leave 5 Stars',
+    delivery_enabled: false,
+    delivery_number: '',
+    delivery_label: 'Delivery',
   });
 
   const [phoneCode, setPhoneCode] = useState<string>(DEFAULT_COUNTRY.dialCode);
@@ -427,6 +446,9 @@ export default function AdminPage() {
                 rate_us_enabled: cardToEdit.rate_us_enabled ?? true,
                 review_url: cardToEdit.review_url || '',
                 rate_us_label: cardToEdit.rate_us_label || 'Rate Us / Leave 5 Stars',
+                delivery_enabled: cardToEdit.delivery_enabled ?? false,
+                delivery_number: cardToEdit.delivery_number || '',
+                delivery_label: cardToEdit.delivery_label || 'Delivery',
               });
               setSlug(cardToEdit.slug);
             }
@@ -587,6 +609,9 @@ export default function AdminPage() {
               rate_us_enabled: cardToEdit.rate_us_enabled ?? true,
               review_url: cardToEdit.review_url || '',
               rate_us_label: cardToEdit.rate_us_label || 'Rate Us / Leave 5 Stars',
+              delivery_enabled: cardToEdit.delivery_enabled ?? false,
+              delivery_number: cardToEdit.delivery_number || '',
+              delivery_label: cardToEdit.delivery_label || 'Delivery',
             });
             setSlug(cardToEdit.slug);
           }
@@ -631,6 +656,9 @@ export default function AdminPage() {
           rate_us_enabled: true,
           review_url: '',
           rate_us_label: 'Rate Us / Leave 5 Stars',
+          delivery_enabled: false,
+          delivery_number: '',
+          delivery_label: 'Delivery',
         });
         setEditingSlug(null);
         setSlug('');
@@ -1087,6 +1115,10 @@ export default function AdminPage() {
       }
     }
 
+    if (form.layout === 'business' && form.delivery_enabled && !form.delivery_number.trim()) {
+      newFieldErrors.delivery_number = 'Delivery Number is required when Delivery Contact is enabled.';
+    }
+
     const primaryFieldValue = form.primary_action === 'phone'
       ? formattedPhone
       : form.primary_action === 'landline'
@@ -1159,6 +1191,9 @@ export default function AdminPage() {
       rate_us_enabled: form.rate_us_enabled ?? true,
       review_url: sanitizeUrl(form.review_url),
       rate_us_label: form.rate_us_label.trim() || undefined,
+      delivery_enabled: form.delivery_enabled ?? false,
+      delivery_number: form.delivery_number.trim() || undefined,
+      delivery_label: form.delivery_label.trim() || undefined,
     };
 
     setCardToConfirm(newCard);
@@ -1222,6 +1257,9 @@ export default function AdminPage() {
         rate_us_enabled: true,
         review_url: '',
         rate_us_label: 'Rate Us / Leave 5 Stars',
+        delivery_enabled: false,
+        delivery_number: '',
+        delivery_label: 'Delivery',
       });
       setSlug('');
       setExtractedColors(null);
@@ -2491,6 +2529,72 @@ export default function AdminPage() {
                       )}
                     </div>
 
+                    {/* 13. Delivery Contact */}
+                    <div className="p-4 rounded-2xl border border-red-200 bg-red-50/40 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-red-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <MotorcycleDeliveryIcon className="w-4 h-4 text-white" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-xs text-slate-900 block">13. Delivery Contact</span>
+                            <span className="text-[10px] text-slate-500 block">Add a direct delivery phone number row</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={form.delivery_enabled}
+                          onClick={() => setForm(prev => ({ ...prev, delivery_enabled: !prev.delivery_enabled }))}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            form.delivery_enabled ? 'bg-red-500' : 'bg-slate-200'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                              form.delivery_enabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {form.delivery_enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                              Delivery Number *
+                            </label>
+                            <input
+                              type="tel"
+                              name="delivery_number"
+                              value={form.delivery_number}
+                              onChange={handleChange}
+                              placeholder="e.g. 05 22 00 00 00"
+                              className={`w-full h-10 px-3 bg-white rounded-xl border ${
+                                fieldErrors.delivery_number ? 'border-red-400 ring-2 ring-red-400/20' : 'border-slate-200 hover:border-slate-300'
+                              } text-xs font-sans transition-all`}
+                            />
+                            {fieldErrors.delivery_number && (
+                              <InlineFieldError message={fieldErrors.delivery_number} />
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                              Button Label
+                            </label>
+                            <input
+                              type="text"
+                              name="delivery_label"
+                              value={form.delivery_label}
+                              onChange={handleChange}
+                              placeholder="Delivery"
+                              className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                   </div>
                 </div>
               ) : (
@@ -3141,262 +3245,19 @@ export default function AdminPage() {
 
             {/* Mobile Device Mockup Frame */}
             <div className="max-w-sm mx-auto bg-slate-900 rounded-[44px] p-3.5 shadow-2xl border-4 border-slate-800 ring-1 ring-slate-700/50">
-              <div className="bg-slate-50 rounded-[36px] overflow-hidden min-h-[580px] flex flex-col justify-between py-6 px-4 relative select-none">
+              <div className="bg-slate-50 rounded-[36px] overflow-hidden min-h-[580px] max-h-[640px] flex flex-col justify-between p-2 relative select-none">
                 
                 {/* Simulated Notch */}
-                <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-28 h-4 bg-slate-900 rounded-full z-20" />
+                <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-28 h-4 bg-slate-900 rounded-full z-40 pointer-events-none" />
 
-                {/* Top Floating Share Button Preview */}
-                <div 
-                  className={`absolute top-8 right-6 z-30 flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold border shadow-2xs ${
-                    form.layout === 'business' 
-                      ? 'bg-slate-100/90 text-slate-700 border-slate-200' 
-                      : 'bg-black/20 text-white border-white/20 backdrop-blur-xs'
-                  }`}
-                >
-                  <Share2 className="w-2.5 h-2.5 shrink-0" />
-                  <span>Share</span>
+                {/* Real-time 1:1 Card Render View */}
+                <div className="w-full h-full overflow-y-auto rounded-[28px] scrollbar-thin">
+                  <CardClient previewCard={form} isPreview={true} />
                 </div>
 
-                {/* Card Live Preview */}
-                {form.layout === 'business' ? (
-                  <div className="w-full bg-white rounded-[28px] shadow-[0_12px_36px_rgba(15,23,42,0.06)] border border-slate-100 p-5 flex flex-col items-center mt-2">
-                    {/* Logo */}
-                    <div 
-                      className="w-28 h-28 mb-3 flex items-center justify-center overflow-hidden transition-all border-0 shadow-sm"
-                      style={{
-                        backgroundColor: form.logo ? '#FFFFFF' : (form.themeColor || '#1B2A4A'),
-                        borderRadius: (form.avatar_border_radius ?? 50) >= 45 ? '50%' : '22%'
-                      }}
-                    >
-                      {form.logo ? (
-                        <img src={form.logo} alt="Logo preview" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="font-serif font-bold text-3xl text-white">
-                          {form.name ? form.name.charAt(0).toUpperCase() : 'B'}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Business Name & Tagline */}
-                    <h4 className="font-serif text-sm font-extrabold text-slate-900 text-center line-clamp-1">
-                      {form.name || 'Your Business Name'}
-                    </h4>
-                    <p className="text-[9px] font-mono font-bold tracking-widest text-slate-400 uppercase text-center mt-0.5 line-clamp-1">
-                      {form.tagline || 'BUSINESS TAGLINE'}
-                    </p>
-
-                    {/* Stacked Link Rows */}
-                    <div className="w-full space-y-2 mt-4">
-                      {(() => {
-                        const rows = [
-                          { val: form.menu_pdf, label: form.menu_label || 'Our Menu', icon: FileText },
-                          { val: form.wifi_password, label: form.wifi_password_label || 'WiFi Password', icon: Wifi },
-                          { val: form.instagram, label: form.instagram_label || 'Instagram', icon: Instagram },
-                          { val: form.facebook, label: form.facebook_label || 'Facebook', icon: Facebook },
-                          { val: form.tiktok, label: form.tiktok_label || 'TikTok', icon: ({ className }: { className?: string }) => (
-                            <svg className={`fill-current ${className || 'w-3.5 h-3.5'}`} viewBox="0 0 24 24">
-                              <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.68 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.33-6.33V9.05a8.16 8.16 0 0 0 4.92 1.58V7.18a4.85 4.85 0 0 1-1-.49z"/>
-                            </svg>
-                          ) },
-                          { val: form.whatsapp, label: form.whatsapp_label || 'WhatsApp', icon: Phone },
-                          { val: form.email, label: form.email_label || 'Email', icon: Mail },
-                          { val: form.address, label: form.localisation_label || 'Location', icon: MapPin },
-                          { val: form.website, label: form.website_label || 'Website', icon: Globe },
-                          { val: form.phone, label: form.mobile_label || 'Call Us', icon: Phone },
-                          { val: form.landline, label: form.landline_label || 'Office Line', icon: PhoneCall },
-                        ].filter(r => !!r.val);
-
-                        const displayRows = rows.length > 0 ? rows : [
-                          { val: 'sample', label: 'Our Menu', icon: FileText },
-                          { val: 'sample', label: 'Instagram', icon: Instagram },
-                          { val: 'sample', label: 'WhatsApp', icon: Phone },
-                          { val: 'sample', label: 'Location', icon: MapPin },
-                        ];
-
-                        return displayRows.slice(0, 5).map((row, idx) => {
-                          const IconComponent = row.icon;
-                          return (
-                            <div
-                              key={idx}
-                              className="relative w-full py-2.5 px-8 rounded-xl font-bold text-white text-xs flex items-center justify-center shadow-2xs"
-                              style={{ backgroundColor: form.themeColor || '#1B2A4A' }}
-                            >
-                              <div className="absolute left-2.5 flex items-center justify-center">
-                                <IconComponent className="w-3.5 h-3.5 shrink-0" />
-                              </div>
-                              <span className="text-[11px] font-semibold text-center truncate">{row.label}</span>
-                              <ArrowUpRight className="absolute right-2.5 w-3.5 h-3.5 text-white/80 shrink-0" />
-                            </div>
-                          );
-                        });
-                      })()}
-
-                      {/* Save Button */}
-                      <div className="flex items-center justify-center w-full max-w-[180px] mx-auto mt-3">
-                        <div className="w-full py-1.5 px-3 rounded-lg font-semibold text-slate-700 text-[10px] flex items-center justify-center gap-1.5 border border-slate-200 bg-slate-50 shadow-2xs truncate">
-                          <UserPlus className="w-3 h-3 text-slate-600 shrink-0" />
-                          <span className="truncate">Save</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                <div className="w-full bg-white rounded-[28px] shadow-[0_12px_36px_rgba(15,23,42,0.06)] border border-slate-100 relative overflow-hidden mt-2 flex flex-col">
-                  <div 
-                    className="h-28 w-full relative transition-all duration-300 overflow-hidden" 
-                    style={{ backgroundColor: form.themeColor }}
-                  >
-                    <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.45),_transparent_60%)]" />
-                    {form.layout !== 'design2' && (
-                      <div 
-                        className="absolute bottom-0 left-0 right-0 h-6 bg-white" 
-                        style={{ clipPath: 'polygon(0 100%, 100% 100%, 100% 0)' }} 
-                      />
-                    )}
-                  </div>
-
-                    <div className={`relative z-10 flex justify-center mb-3 ${
-                      form.layout === 'design2' ? '-mt-18' : '-mt-16'
-                    }`}>
-                      {(() => {
-                        const isCircle = (form.avatar_border_radius ?? 50) >= 45;
-                        return (
-                          <div 
-                            className={`flex items-center justify-center bg-white shadow-[0_8px_20px_-4px_rgba(0,0,0,0.08)] transition-all duration-300 overflow-hidden border-0 ${
-                              form.layout === 'design2' ? 'w-28 h-28' : 'w-24 h-24'
-                            }`}
-                            style={{ 
-                              backgroundColor: form.logo ? '#FFFFFF' : form.themeColor,
-                              borderColor: 'transparent',
-                              borderRadius: isCircle ? '50%' : '22%'
-                            }}
-                          >
-                            {form.logo ? (
-                              <img 
-                                src={form.logo} 
-                                alt="Logo preview" 
-                                className="w-full h-full object-cover p-0" 
-                              />
-                            ) : (
-                              <span className={`font-serif font-bold tracking-tight text-white select-none ${
-                                form.layout === 'design2' ? 'text-4xl' : 'text-3xl'
-                              }`}>
-                                {form.name ? form.name.charAt(0).toUpperCase() : 'B'}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    <div className="pb-6 px-4 text-center flex flex-col">
-                      <h4 className="font-serif text-base font-extrabold text-slate-950 tracking-tight leading-tight line-clamp-1 px-2">
-                        {form.name || 'Your Business Name'}
-                      </h4>
-
-                      <p className="mt-1 text-[7px] font-mono font-bold tracking-[0.2em] text-slate-400 uppercase line-clamp-1 px-2">
-                        {form.tagline || 'Digital Business Card'}
-                      </p>
-
-                      <div className="flex justify-center items-center gap-2 my-3 select-none" aria-hidden="true">
-                        <div className="h-[1px] w-5 bg-slate-100" />
-                        <span className="text-[7px] font-mono tracking-widest text-slate-300">✦</span>
-                        <div className="h-[1px] w-5 bg-slate-100" />
-                      </div>
-
-                      {form.address && (
-                        <p className="text-[9px] text-slate-500 mb-4 px-2 leading-relaxed max-w-[220px] mx-auto line-clamp-2">
-                          {form.address}
-                        </p>
-                      )}
-
-                      <div className="px-2 space-y-2 mb-4">
-                        {form[form.primary_action] && (
-                          <div 
-                            className="w-full py-2.5 px-4 rounded-xl font-bold text-white flex items-center justify-center gap-2 opacity-95 transition-all"
-                            style={{ 
-                              backgroundColor: form.themeColor,
-                              boxShadow: `0 6px 15px -3px ${form.themeColor}30`
-                            }}
-                          >
-                            {getActionIcon(form.primary_action, 'w-3.5 h-3.5')}
-                            <span className="tracking-wide text-[10px] font-semibold">
-                              {ACTION_OPTIONS.find(o => o.value === form.primary_action)?.label || 'Connect with Us'}
-                            </span>
-                          </div>
-                        )}
-
-                        <div 
-                          className="w-full py-2.5 px-2 rounded-xl font-bold border-2 flex items-center justify-center gap-1.5 text-center"
-                          style={{ 
-                            borderColor: form.themeColor,
-                            color: form.themeColor,
-                            backgroundColor: `${form.themeColor}05`
-                          }}
-                        >
-                          <UserPlus className="w-3.5 h-3.5 shrink-0" />
-                          <span className="tracking-wide text-[10px] font-bold truncate">Save</span>
-                        </div>
-                      </div>
-
-                      <div className="border-t border-slate-100/80 pt-4">
-                        <p className="text-[7px] font-mono tracking-[0.15em] text-slate-400 uppercase mb-3 select-none">
-                          Connect With Us
-                        </p>
-                        
-                        <div className="grid grid-cols-3 gap-y-4 gap-x-2 justify-items-center max-w-[220px] mx-auto px-1">
-                          {(() => {
-                            const secondaryActions = ['phone', 'landline', 'whatsapp', 'email', 'address', 'website', 'instagram', 'facebook', 'tiktok']
-                              .filter(k => k !== form.primary_action && form[k as keyof typeof form]);
-
-                            if (secondaryActions.length > 0) {
-                              return secondaryActions.map((actionKey) => (
-                                <div 
-                                  key={actionKey}
-                                  className="flex flex-col items-center w-full min-w-[48px] max-w-[64px]"
-                                >
-                                  <div 
-                                    className="w-9 h-9 rounded-full border flex items-center justify-center transition-all"
-                                    style={{ 
-                                      backgroundColor: `${form.themeColor}06`,
-                                      borderColor: `${form.themeColor}12`,
-                                      color: form.themeColor
-                                    }}
-                                  >
-                                    {getActionIcon(actionKey, 'w-3.5 h-3.5')}
-                                  </div>
-                                  <span className="text-[7px] font-bold text-slate-500 tracking-wide mt-1.5 uppercase truncate w-full text-center">
-                                    {actionKey === 'phone' ? 'Mobile' : actionKey === 'landline' ? 'Fixe' : actionKey === 'whatsapp' ? 'WhatsApp' : actionKey === 'email' ? 'Email' : actionKey === 'address' ? 'Location' : actionKey === 'website' ? 'Website' : actionKey === 'instagram' ? 'Instagram' : actionKey === 'facebook' ? 'Facebook' : actionKey === 'tiktok' ? 'TikTok' : 'Link'}
-                                  </span>
-                                </div>
-                              ));
-                            } else {
-                              return ['phone', 'landline', 'email', 'website'].map((key) => (
-                                <div 
-                                  key={key}
-                                  className="flex flex-col items-center w-[28%] min-w-[48px] max-w-[64px] opacity-40"
-                                >
-                                  <div className="w-9 h-9 rounded-full border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400">
-                                    {getActionIcon(key, 'w-3.5 h-3.5')}
-                                  </div>
-                                  <span className="text-[7px] font-bold text-slate-400 tracking-wide mt-1.5 uppercase truncate w-full text-center">
-                                    {key === 'phone' ? 'Mobile' : key === 'landline' ? 'Fixe' : key === 'email' ? 'Email' : 'Website'}
-                                  </span>
-                                </div>
-                              ));
-                            }
-                          })()}
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-                )}
-
                 {/* Footer Brand */}
-                <div className="text-center text-[8px] font-mono tracking-wider text-slate-400 uppercase mt-2">
-                  ⚡ NFC Card Preview Engine
+                <div className="text-center text-[8px] font-mono tracking-wider text-slate-400 uppercase mt-2 pb-1">
+                  ⚡ NFC Card Live Render Engine
                 </div>
 
               </div>
