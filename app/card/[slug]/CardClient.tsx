@@ -610,25 +610,18 @@ export default function CardClient({
           transition={{ delay: 0.2, duration: 0.3 }}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className={`absolute top-3.5 right-3.5 sm:top-4 sm:right-4 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs transition-all active:scale-95 cursor-pointer ${
+          className={`absolute top-3.5 right-3.5 sm:top-4 sm:right-4 z-30 flex items-center justify-center p-2.5 rounded-full shadow-xs transition-all active:scale-95 cursor-pointer ${
             layout === 'business'
               ? 'bg-slate-100/90 hover:bg-slate-200/90 text-slate-700 border border-slate-200/80'
               : 'bg-black/20 hover:bg-black/30 backdrop-blur-md text-white border border-white/20'
           }`}
           title={getCardTranslation(card.language || 'en').shareCard || 'Share Card'}
+          aria-label={getCardTranslation(card.language || 'en').shareCard || 'Share Card'}
         >
           {copied ? (
-            <>
-              <Check className={`w-3.5 h-3.5 shrink-0 ${layout === 'business' ? 'text-emerald-600' : 'text-emerald-300'}`} />
-              <span className={layout === 'business' ? 'text-emerald-700 font-bold' : 'text-emerald-200 font-bold'}>
-                {getCardTranslation(card.language || 'en').linkCopied || 'Copied!'}
-              </span>
-            </>
+            <Check className={`w-4 h-4 shrink-0 ${layout === 'business' ? 'text-emerald-600' : 'text-emerald-300'}`} />
           ) : (
-            <>
-              <Share2 className="w-3.5 h-3.5 shrink-0" />
-              <span>{getCardTranslation(card.language || 'en').shareCard || 'Share'}</span>
-            </>
+            <Share2 className="w-4 h-4 shrink-0" />
           )}
         </motion.button>
 
