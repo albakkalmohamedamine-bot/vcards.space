@@ -193,6 +193,7 @@ export default function AdminPage() {
     delivery_enabled: false,
     delivery_number: '',
     delivery_label: 'Delivery',
+    first_priority_field: '',
   });
 
   const [phoneCode, setPhoneCode] = useState<string>(DEFAULT_COUNTRY.dialCode);
@@ -449,6 +450,7 @@ export default function AdminPage() {
                 delivery_enabled: cardToEdit.delivery_enabled ?? false,
                 delivery_number: cardToEdit.delivery_number || '',
                 delivery_label: cardToEdit.delivery_label || 'Delivery',
+                first_priority_field: cardToEdit.first_priority_field || '',
               });
               setSlug(cardToEdit.slug);
             }
@@ -504,6 +506,7 @@ export default function AdminPage() {
         form.website === '' &&
         form.primary_action === 'website' &&
         form.primary_action_label === '' &&
+        (form.first_priority_field || '') === '' &&
         slug === '' &&
         phoneCode === DEFAULT_COUNTRY.dialCode &&
         landlineCode === DEFAULT_COUNTRY.dialCode &&
@@ -612,6 +615,7 @@ export default function AdminPage() {
               delivery_enabled: cardToEdit.delivery_enabled ?? false,
               delivery_number: cardToEdit.delivery_number || '',
               delivery_label: cardToEdit.delivery_label || 'Delivery',
+              first_priority_field: cardToEdit.first_priority_field || '',
             });
             setSlug(cardToEdit.slug);
           }
@@ -659,6 +663,7 @@ export default function AdminPage() {
           delivery_enabled: false,
           delivery_number: '',
           delivery_label: 'Delivery',
+          first_priority_field: '',
         });
         setEditingSlug(null);
         setSlug('');
@@ -1194,6 +1199,7 @@ export default function AdminPage() {
       delivery_enabled: form.delivery_enabled ?? false,
       delivery_number: form.delivery_number.trim() || undefined,
       delivery_label: form.delivery_label.trim() || undefined,
+      first_priority_field: form.first_priority_field || undefined,
     };
 
     setCardToConfirm(newCard);
@@ -1260,6 +1266,7 @@ export default function AdminPage() {
         delivery_enabled: false,
         delivery_number: '',
         delivery_label: 'Delivery',
+        first_priority_field: '',
       });
       setSlug('');
       setExtractedColors(null);
@@ -1945,6 +1952,89 @@ export default function AdminPage() {
                   </div>
 
                   <div className="space-y-4">
+                    {/* Featured 1st Priority Button Selector */}
+                    <div className="p-4.5 rounded-2xl border border-indigo-200/90 bg-indigo-50/50 space-y-3.5 shadow-2xs">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <Sparkles className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-xs text-slate-900 block">Featured 1st Priority Button</span>
+                            <span className="text-[10px] text-slate-500 block">Choose which field appears as the 1st button in the card's buttons list</span>
+                          </div>
+                        </div>
+                        {form.first_priority_field && (
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, first_priority_field: '' }))}
+                            className="text-[10px] font-mono font-bold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors shadow-2xs cursor-pointer"
+                          >
+                            Reset to Default Order
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                            1st Button Selection
+                          </label>
+                          <select
+                            name="first_priority_field"
+                            value={form.first_priority_field || ''}
+                            onChange={handleChange}
+                            className="w-full h-10 px-3 bg-white rounded-xl border border-indigo-200 text-xs font-sans font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer shadow-2xs"
+                          >
+                            <option value="">Default Order (Standard Sequence)</option>
+                            <option value="instagram">Instagram</option>
+                            <option value="menu_pdf">Menu / Price List PDF</option>
+                            <option value="wifi_password">WiFi Password</option>
+                            <option value="facebook">Facebook</option>
+                            <option value="tiktok">TikTok</option>
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="email">Email</option>
+                            <option value="address">Location / Address</option>
+                            <option value="website">Website</option>
+                            <option value="phone">Mobile Phone</option>
+                            <option value="landline">Office Line</option>
+                            <option value="rate_us">5 Golden Stars & Google Review</option>
+                            <option value="delivery">Delivery Contact</option>
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col justify-center">
+                          <span className="block text-[11px] font-mono font-bold text-slate-500 uppercase mb-1.5">
+                            Quick Select 1st Button:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[
+                              { id: '', label: 'Default' },
+                              { id: 'instagram', label: 'Instagram' },
+                              { id: 'menu_pdf', label: 'Menu PDF' },
+                              { id: 'wifi_password', label: 'WiFi' },
+                              { id: 'whatsapp', label: 'WhatsApp' },
+                              { id: 'rate_us', label: 'Rate Us' },
+                              { id: 'delivery', label: 'Delivery' },
+                            ].map(chip => (
+                              <button
+                                key={chip.id}
+                                type="button"
+                                onClick={() => setForm(prev => ({ ...prev, first_priority_field: chip.id }))}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold font-sans transition-all cursor-pointer ${
+                                  (form.first_priority_field || '') === chip.id
+                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                                }`}
+                              >
+                                {chip.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* 1. Menu PDF */}
                     <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
                       <div className="flex items-center justify-between">

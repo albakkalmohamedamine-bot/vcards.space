@@ -57,5 +57,8 @@ export interface BusinessCard {
   delivery_enabled?: boolean;
   delivery_number?: string;
   delivery_label?: string; // Default: "Delivery"
+
+  // Priority Button Ordering
+  first_priority_field?: string; // Field ID selected to be the 1st button in the card's buttons list
 }
 

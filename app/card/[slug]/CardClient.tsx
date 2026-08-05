@@ -437,6 +437,14 @@ export default function CardClient({
       });
     }
 
+    if (c.first_priority_field) {
+      const priorityIndex = rows.findIndex(r => r.id === c.first_priority_field);
+      if (priorityIndex > 0) {
+        const [priorityRow] = rows.splice(priorityIndex, 1);
+        rows.unshift(priorityRow);
+      }
+    }
+
     return rows;
   };
 

@@ -55,6 +55,7 @@ function mapRowToCard(row: any): BusinessCard {
     delivery_enabled: row.delivery_enabled ?? false,
     delivery_number: row.delivery_number || '',
     delivery_label: row.delivery_label || 'Delivery',
+    first_priority_field: row.first_priority_field || '',
   };
 }
 
@@ -103,6 +104,7 @@ function mapCardToRow(card: BusinessCard) {
     delivery_enabled: card.delivery_enabled ?? false,
     delivery_number: card.delivery_number || null,
     delivery_label: card.delivery_label || null,
+    first_priority_field: card.first_priority_field || null,
   };
 }
 
