@@ -5,7 +5,6 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'VCARDS SPACE Digital Card',
     short_name: 'VCARDS SPACE',
     description: 'Digital Business Card & Contact Info',
-    start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',
     theme_color: '#25394d',

@@ -15,13 +15,25 @@ export default function LoginPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
+  const [diagnosticStep, setDiagnosticStep] = useState<string>('Idle');
+  const [diagnosticLog, setDiagnosticLog] = useState<string[]>([]);
+
+  const addLog = (msg: string) => {
+    setDiagnosticStep(msg);
+    setDiagnosticLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+  };
 
   useEffect(() => {
-    // If already logged in, redirect straight to homepage
+    addLog('Step 1/4: Checking existing session on initial page load...');
     getSession().then((session) => {
       if (session) {
+        addLog('Existing session found! Navigating to /...');
         router.replace('/');
+      } else {
+        addLog('No active session found. Ready for user credentials.');
       }
+    }).catch((err) => {
+      addLog(`Error checking session: ${err.message || String(err)}`);
     });
   }, [router]);
 
@@ -29,18 +41,45 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
+    setDiagnosticLog([]);
 
+    addLog('Step 1/4: Authenticating credentials via signInWithEmail...');
     const result = await signInWithEmail(email, password);
 
-    if (result.success) {
-      setIsSuccess(true);
-      // Give a brief moment for success feedback then navigate to homepage
-      setTimeout(() => {
-        router.push('/');
-      }, 600);
+    if (result.success && (result.session || (await getSession()))) {
+      addLog('Step 2/4: Auth credentials valid! Verifying session cookies via getSession()...');
+      
+      let session = await getSession();
+      if (!session && result.session) {
+        addLog('Step 2/4 note: Using authenticated session from signInWithPassword.');
+        session = result.session;
+      }
+
+      if (session) {
+        setIsSuccess(true);
+        addLog(`Step 3/4: Session retrieved successfully (User ID: ${session.user.id.slice(0, 8)}...). Cookies active.`);
+        addLog('Step 4/4: Triggering router.push("/") redirect to Admin Dashboard...');
+        setTimeout(() => {
+          try {
+            addLog('Executing router.refresh() & router.push("/")...');
+            router.refresh();
+            router.push('/');
+          } catch (err) {
+            addLog(`Redirect ERROR: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }, 600);
+      } else {
+        setIsLoading(false);
+        setIsSuccess(false);
+        setError('Session verification failed. Please try again.');
+        addLog('Step 3/4 ERROR: getSession() returned NULL session after login! Redirect aborted to prevent bounce loop.');
+        setShakeKey((prev) => prev + 1);
+      }
     } else {
       setIsLoading(false);
-      setError('Invalid credentials');
+      setIsSuccess(false);
+      setError(result.error || 'Invalid credentials');
+      addLog(`Auth FAILED: ${result.error || 'Invalid credentials'}`);
       setShakeKey((prev) => prev + 1);
     }
   };
@@ -124,6 +163,18 @@ export default function LoginPage() {
                     <p className="text-xs font-mono text-slate-500 mt-1 uppercase tracking-wider font-semibold">
                       {isSuccess ? 'Loading Homepage...' : 'Connecting to Supabase'}
                     </p>
+                  </div>
+
+                  {/* On-screen diagnostic status step */}
+                  <div className="w-full max-w-xs bg-slate-900 text-amber-300 p-3 rounded-xl text-left text-[11px] font-mono border border-slate-700 space-y-1 overflow-x-auto max-h-36 shadow-inner">
+                    <div className="text-slate-400 font-bold border-b border-slate-800 pb-1 mb-1 uppercase tracking-wider text-[10px]">
+                      Diagnostic Log
+                    </div>
+                    {diagnosticLog.map((log, i) => (
+                      <div key={i} className="leading-tight break-all">
+                        {log}
+                      </div>
+                    ))}
                   </div>
                 </motion.div>
               )}
