@@ -74,6 +74,10 @@ const ACTION_OPTIONS: { value: PrimaryActionType; label: string }[] = [
   { value: 'instagram', label: 'Instagram Profile' },
   { value: 'facebook', label: 'Facebook Connection' },
   { value: 'tiktok', label: 'TikTok Profile' },
+  { value: 'snapchat', label: 'Snapchat Profile' },
+  { value: 'linkedin', label: 'LinkedIn Profile' },
+  { value: 'twitter', label: 'X (Twitter) Profile' },
+  { value: 'youtube', label: 'YouTube Channel' },
 ];
 
 const InlineFieldError = ({ message }: { message?: string }) => {
@@ -109,6 +113,27 @@ const getActionIcon = (type: string, className = 'w-5 h-5') => {
     case 'tiktok': return (
       <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.68 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.33-6.33V9.05a8.16 8.16 0 0 0 4.92 1.58V7.18a4.85 4.85 0 0 1-1-.05z"/>
+      </svg>
+    );
+    case 'snapchat': return (
+      <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12.001 2c-3.132 0-5.32 2.215-5.32 4.961 0 .864.225 1.637.587 2.292-.533.153-1.258.411-1.802.946-.431.424-.51.983-.238 1.488.225.418.729.68 1.253.868-.041.341-.12.879-.12 1.272 0 1.95 1.547 3.518 4.298 3.518.358 0 .749-.03 1.15-.09.313.364.787.607 1.192.607.404 0 .878-.243 1.191-.607.402.06.793.09 1.152.09 2.75 0 4.297-1.568 4.297-3.518 0-.393-.079-.931-.12-1.272.524-.188 1.028-.45 1.253-.868.272-.505.193-1.064-.238-1.488-.544-.535-1.269-.793-1.802-.946.362-.655.587-1.428.587-2.292C17.321 4.215 15.133 2 12.001 2z"/>
+      </svg>
+    );
+    case 'linkedin': return (
+      <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.72a1.47 1.47 0 1 0 0 2.94 1.47 1.47 0 0 0 0-2.94Z" />
+      </svg>
+    );
+    case 'x':
+    case 'twitter': return (
+      <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    );
+    case 'youtube': return (
+      <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
       </svg>
     );
     default: return <Plus className={className} />;
@@ -166,6 +191,10 @@ export default function AdminPage() {
     instagram: '',
     facebook: '',
     tiktok: '',
+    snapchat: '',
+    linkedin: '',
+    twitter: '',
+    youtube: '',
     website: '',
     primary_action: 'website' as PrimaryActionType,
     primary_action_label: '',
@@ -180,6 +209,10 @@ export default function AdminPage() {
     instagram_label: 'Instagram',
     facebook_label: 'Facebook',
     tiktok_label: 'TikTok',
+    snapchat_label: 'Snapchat',
+    linkedin_label: 'LinkedIn',
+    twitter_label: 'X (Twitter)',
+    youtube_label: 'YouTube',
     whatsapp_label: 'WhatsApp',
     email_label: 'Email',
     localisation_label: 'Location',
@@ -425,6 +458,10 @@ export default function AdminPage() {
                 instagram: cardToEdit.instagram || '',
                 facebook: cardToEdit.facebook || '',
                 tiktok: cardToEdit.tiktok || '',
+                snapchat: cardToEdit.snapchat || '',
+                linkedin: cardToEdit.linkedin || '',
+                twitter: cardToEdit.twitter || '',
+                youtube: cardToEdit.youtube || '',
                 website: cardToEdit.website || '',
                 primary_action: cardToEdit.primary_action || 'website',
                 primary_action_label: cardToEdit.primary_action_label || '',
@@ -437,6 +474,10 @@ export default function AdminPage() {
                 instagram_label: cardToEdit.instagram_label || 'Instagram',
                 facebook_label: cardToEdit.facebook_label || 'Facebook',
                 tiktok_label: cardToEdit.tiktok_label || 'TikTok',
+                snapchat_label: cardToEdit.snapchat_label || 'Snapchat',
+                linkedin_label: cardToEdit.linkedin_label || 'LinkedIn',
+                twitter_label: cardToEdit.twitter_label || 'X (Twitter)',
+                youtube_label: cardToEdit.youtube_label || 'YouTube',
                 whatsapp_label: cardToEdit.whatsapp_label || 'WhatsApp',
                 email_label: cardToEdit.email_label || 'Email',
                 localisation_label: cardToEdit.localisation_label || 'Location',
@@ -503,6 +544,10 @@ export default function AdminPage() {
         form.instagram === '' &&
         form.facebook === '' &&
         form.tiktok === '' &&
+        (form.snapchat || '') === '' &&
+        (form.linkedin || '') === '' &&
+        (form.twitter || '') === '' &&
+        (form.youtube || '') === '' &&
         form.website === '' &&
         form.primary_action === 'website' &&
         form.primary_action_label === '' &&
@@ -590,6 +635,10 @@ export default function AdminPage() {
               instagram: cardToEdit.instagram || '',
               facebook: cardToEdit.facebook || '',
               tiktok: cardToEdit.tiktok || '',
+              snapchat: cardToEdit.snapchat || '',
+              linkedin: cardToEdit.linkedin || '',
+              twitter: cardToEdit.twitter || '',
+              youtube: cardToEdit.youtube || '',
               website: cardToEdit.website || '',
               primary_action: cardToEdit.primary_action || 'website',
               primary_action_label: cardToEdit.primary_action_label || '',
@@ -602,6 +651,10 @@ export default function AdminPage() {
               instagram_label: cardToEdit.instagram_label || '',
               facebook_label: cardToEdit.facebook_label || '',
               tiktok_label: cardToEdit.tiktok_label || '',
+              snapchat_label: cardToEdit.snapchat_label || '',
+              linkedin_label: cardToEdit.linkedin_label || '',
+              twitter_label: cardToEdit.twitter_label || '',
+              youtube_label: cardToEdit.youtube_label || '',
               whatsapp_label: cardToEdit.whatsapp_label || '',
               email_label: cardToEdit.email_label || '',
               localisation_label: cardToEdit.localisation_label || '',
@@ -638,6 +691,10 @@ export default function AdminPage() {
           instagram: '',
           facebook: '',
           tiktok: '',
+          snapchat: '',
+          linkedin: '',
+          twitter: '',
+          youtube: '',
           website: '',
           primary_action: 'website',
           primary_action_label: '',
@@ -650,6 +707,10 @@ export default function AdminPage() {
           instagram_label: '',
           facebook_label: '',
           tiktok_label: '',
+          snapchat_label: '',
+          linkedin_label: '',
+          twitter_label: '',
+          youtube_label: '',
           whatsapp_label: '',
           email_label: '',
           localisation_label: '',
@@ -1078,6 +1139,26 @@ export default function AdminPage() {
       newFieldErrors.tiktok = 'Invalid or unsafe TikTok link.';
     }
 
+    const cleanSnapchat = sanitizeUrl(form.snapchat || '');
+    if (form.snapchat && form.snapchat.trim() && !cleanSnapchat) {
+      newFieldErrors.snapchat = 'Invalid or unsafe Snapchat link.';
+    }
+
+    const cleanLinkedin = sanitizeUrl(form.linkedin || '');
+    if (form.linkedin && form.linkedin.trim() && !cleanLinkedin) {
+      newFieldErrors.linkedin = 'Invalid or unsafe LinkedIn link.';
+    }
+
+    const cleanTwitter = sanitizeUrl(form.twitter || '');
+    if (form.twitter && form.twitter.trim() && !cleanTwitter) {
+      newFieldErrors.twitter = 'Invalid or unsafe X (Twitter) link.';
+    }
+
+    const cleanYoutube = sanitizeUrl(form.youtube || '');
+    if (form.youtube && form.youtube.trim() && !cleanYoutube) {
+      newFieldErrors.youtube = 'Invalid or unsafe YouTube link.';
+    }
+
     const trimmedSlug = slug.trim();
     if (!trimmedSlug) {
       newFieldErrors.slug = 'URL Slug is required.';
@@ -1174,6 +1255,10 @@ export default function AdminPage() {
       instagram: cleanInstagram,
       facebook: cleanFacebook,
       tiktok: cleanTiktok,
+      snapchat: cleanSnapchat,
+      linkedin: cleanLinkedin,
+      twitter: cleanTwitter,
+      youtube: cleanYoutube,
       website: cleanWebsite,
       primary_action: form.primary_action,
       primary_action_label: form.primary_action_label.trim() || undefined,
@@ -1186,6 +1271,10 @@ export default function AdminPage() {
       instagram_label: form.instagram_label.trim() || undefined,
       facebook_label: form.facebook_label.trim() || undefined,
       tiktok_label: form.tiktok_label.trim() || undefined,
+      snapchat_label: form.snapchat_label.trim() || undefined,
+      linkedin_label: form.linkedin_label.trim() || undefined,
+      twitter_label: form.twitter_label.trim() || undefined,
+      youtube_label: form.youtube_label.trim() || undefined,
       whatsapp_label: form.whatsapp_label.trim() || undefined,
       email_label: form.email_label.trim() || undefined,
       localisation_label: form.localisation_label.trim() || undefined,
@@ -1241,6 +1330,10 @@ export default function AdminPage() {
         instagram: '',
         facebook: '',
         tiktok: '',
+        snapchat: '',
+        linkedin: '',
+        twitter: '',
+        youtube: '',
         website: '',
         primary_action: 'website',
         primary_action_label: '',
@@ -1253,6 +1346,10 @@ export default function AdminPage() {
         instagram_label: 'Instagram',
         facebook_label: 'Facebook',
         tiktok_label: 'TikTok',
+        snapchat_label: 'Snapchat',
+        linkedin_label: 'LinkedIn',
+        twitter_label: 'X (Twitter)',
+        youtube_label: 'YouTube',
         whatsapp_label: 'WhatsApp',
         email_label: 'Email',
         localisation_label: 'Location',
@@ -1988,10 +2085,14 @@ export default function AdminPage() {
                           >
                             <option value="">Default Order (Standard Sequence)</option>
                             <option value="instagram">Instagram</option>
-                            <option value="menu_pdf">Menu / Price List PDF</option>
-                            <option value="wifi_password">WiFi Password</option>
                             <option value="facebook">Facebook</option>
                             <option value="tiktok">TikTok</option>
+                            <option value="snapchat">Snapchat</option>
+                            <option value="linkedin">LinkedIn</option>
+                            <option value="twitter">X (Twitter)</option>
+                            <option value="youtube">YouTube</option>
+                            <option value="menu_pdf">Menu / Price List PDF</option>
+                            <option value="wifi_password">WiFi Password</option>
                             <option value="whatsapp">WhatsApp</option>
                             <option value="email">Email</option>
                             <option value="address">Location / Address</option>
@@ -2011,6 +2112,10 @@ export default function AdminPage() {
                             {[
                               { id: '', label: 'Default' },
                               { id: 'instagram', label: 'Instagram' },
+                              { id: 'snapchat', label: 'Snapchat' },
+                              { id: 'linkedin', label: 'LinkedIn' },
+                              { id: 'twitter', label: 'X' },
+                              { id: 'youtube', label: 'YouTube' },
                               { id: 'menu_pdf', label: 'Menu PDF' },
                               { id: 'wifi_password', label: 'WiFi' },
                               { id: 'whatsapp', label: 'WhatsApp' },
@@ -2284,6 +2389,166 @@ export default function AdminPage() {
                             value={form.tiktok_label}
                             onChange={handleChange}
                             placeholder="TikTok"
+                            className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 6. Snapchat */}
+                    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-yellow-400 text-slate-900 flex items-center justify-center shrink-0 font-bold">
+                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <path d="M12.001 2c-3.132 0-5.32 2.215-5.32 4.961 0 .864.225 1.637.587 2.292-.533.153-1.258.411-1.802.946-.431.424-.51.983-.238 1.488.225.418.729.68 1.253.868-.041.341-.12.879-.12 1.272 0 1.95 1.547 3.518 4.298 3.518.358 0 .749-.03 1.15-.09.313.364.787.607 1.192.607.404 0 .878-.243 1.191-.607.402.06.793.09 1.152.09 2.75 0 4.297-1.568 4.297-3.518 0-.393-.079-.931-.12-1.272.524-.188 1.028-.45 1.253-.868.272-.505.193-1.064-.238-1.488-.544-.535-1.269-.793-1.802-.946.362-.655.587-1.428.587-2.292C17.321 4.215 15.133 2 12.001 2z"/>
+                          </svg>
+                        </div>
+                        <span className="font-bold text-xs text-slate-900">6. Snapchat</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                            Snapchat Username / URL
+                          </label>
+                          <input
+                            type="text"
+                            name="snapchat"
+                            value={form.snapchat || ''}
+                            onChange={handleChange}
+                            placeholder="e.g. mybusiness"
+                            className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                            Button Label
+                          </label>
+                          <input
+                            type="text"
+                            name="snapchat_label"
+                            value={form.snapchat_label || ''}
+                            onChange={handleChange}
+                            placeholder="Snapchat"
+                            className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 7. LinkedIn */}
+                    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 font-bold">
+                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.72a1.47 1.47 0 1 0 0 2.94 1.47 1.47 0 0 0 0-2.94Z"/>
+                          </svg>
+                        </div>
+                        <span className="font-bold text-xs text-slate-900">7. LinkedIn</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                            LinkedIn Page / Profile URL
+                          </label>
+                          <input
+                            type="text"
+                            name="linkedin"
+                            value={form.linkedin || ''}
+                            onChange={handleChange}
+                            placeholder="e.g. company/mybusiness"
+                            className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                            Button Label
+                          </label>
+                          <input
+                            type="text"
+                            name="linkedin_label"
+                            value={form.linkedin_label || ''}
+                            onChange={handleChange}
+                            placeholder="LinkedIn"
+                            className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 8. X (Twitter) */}
+                    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-black text-white flex items-center justify-center shrink-0 font-bold">
+                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                          </svg>
+                        </div>
+                        <span className="font-bold text-xs text-slate-900">8. X (Twitter)</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                            X Handle / Profile URL
+                          </label>
+                          <input
+                            type="text"
+                            name="twitter"
+                            value={form.twitter || ''}
+                            onChange={handleChange}
+                            placeholder="e.g. @mybusiness"
+                            className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                            Button Label
+                          </label>
+                          <input
+                            type="text"
+                            name="twitter_label"
+                            value={form.twitter_label || ''}
+                            onChange={handleChange}
+                            placeholder="X (Twitter)"
+                            className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 9. YouTube */}
+                    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center shrink-0 font-bold">
+                          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                          </svg>
+                        </div>
+                        <span className="font-bold text-xs text-slate-900">9. YouTube</span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                            YouTube Channel / URL
+                          </label>
+                          <input
+                            type="text"
+                            name="youtube"
+                            value={form.youtube || ''}
+                            onChange={handleChange}
+                            placeholder="e.g. @mychannel"
+                            className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                            Button Label
+                          </label>
+                          <input
+                            type="text"
+                            name="youtube_label"
+                            value={form.youtube_label || ''}
+                            onChange={handleChange}
+                            placeholder="YouTube"
                             className="w-full h-10 px-3 bg-white rounded-xl border border-slate-200 text-xs font-sans"
                           />
                         </div>
@@ -3113,7 +3378,7 @@ export default function AdminPage() {
               {/* Social Channels */}
               <div className="border-t border-slate-150 pt-6">
                 <h3 className="font-serif text-lg font-semibold text-slate-800 mb-4">Social Accounts</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <label htmlFor="instagram-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
                       Instagram Page URL
@@ -3166,6 +3431,78 @@ export default function AdminPage() {
                       } focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-sm font-sans touch-manipulation shadow-2xs focus:shadow-sm`}
                     />
                     <InlineFieldError message={fieldErrors.tiktok} />
+                  </div>
+
+                  <div>
+                    <label htmlFor="snapchat-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
+                      Snapchat Username / URL
+                    </label>
+                    <input
+                      id="snapchat-input"
+                      type="text"
+                      name="snapchat"
+                      value={form.snapchat || ''}
+                      onChange={handleChange}
+                      placeholder="https://snapchat.com/add/username"
+                      className={`w-full h-12 px-4 bg-slate-50 rounded-xl border ${
+                        fieldErrors.snapchat ? 'border-red-400 ring-2 ring-red-400/20' : 'border-slate-200 hover:border-slate-300'
+                      } focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-sm font-sans touch-manipulation shadow-2xs focus:shadow-sm`}
+                    />
+                    <InlineFieldError message={fieldErrors.snapchat} />
+                  </div>
+
+                  <div>
+                    <label htmlFor="linkedin-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
+                      LinkedIn Profile / Page URL
+                    </label>
+                    <input
+                      id="linkedin-input"
+                      type="url"
+                      name="linkedin"
+                      value={form.linkedin || ''}
+                      onChange={handleChange}
+                      placeholder="https://linkedin.com/in/username"
+                      className={`w-full h-12 px-4 bg-slate-50 rounded-xl border ${
+                        fieldErrors.linkedin ? 'border-red-400 ring-2 ring-red-400/20' : 'border-slate-200 hover:border-slate-300'
+                      } focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-sm font-sans touch-manipulation shadow-2xs focus:shadow-sm`}
+                    />
+                    <InlineFieldError message={fieldErrors.linkedin} />
+                  </div>
+
+                  <div>
+                    <label htmlFor="twitter-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
+                      X (Twitter) Profile / @Username
+                    </label>
+                    <input
+                      id="twitter-input"
+                      type="text"
+                      name="twitter"
+                      value={form.twitter || ''}
+                      onChange={handleChange}
+                      placeholder="https://x.com/username"
+                      className={`w-full h-12 px-4 bg-slate-50 rounded-xl border ${
+                        fieldErrors.twitter ? 'border-red-400 ring-2 ring-red-400/20' : 'border-slate-200 hover:border-slate-300'
+                      } focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-sm font-sans touch-manipulation shadow-2xs focus:shadow-sm`}
+                    />
+                    <InlineFieldError message={fieldErrors.twitter} />
+                  </div>
+
+                  <div>
+                    <label htmlFor="youtube-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
+                      YouTube Channel URL
+                    </label>
+                    <input
+                      id="youtube-input"
+                      type="url"
+                      name="youtube"
+                      value={form.youtube || ''}
+                      onChange={handleChange}
+                      placeholder="https://youtube.com/@channel"
+                      className={`w-full h-12 px-4 bg-slate-50 rounded-xl border ${
+                        fieldErrors.youtube ? 'border-red-400 ring-2 ring-red-400/20' : 'border-slate-200 hover:border-slate-300'
+                      } focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-sm font-sans touch-manipulation shadow-2xs focus:shadow-sm`}
+                    />
+                    <InlineFieldError message={fieldErrors.youtube} />
                   </div>
                 </div>
               </div>

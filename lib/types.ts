@@ -1,6 +1,6 @@
 export type BusinessTheme = 'indigo' | 'rust' | 'sage';
 
-export type PrimaryActionType = 'phone' | 'landline' | 'whatsapp' | 'email' | 'address' | 'website' | 'instagram' | 'facebook' | 'tiktok';
+export type PrimaryActionType = 'phone' | 'landline' | 'whatsapp' | 'email' | 'address' | 'website' | 'instagram' | 'facebook' | 'tiktok' | 'snapchat' | 'linkedin' | 'twitter' | 'youtube';
 
 export type BusinessLanguage = 'en' | 'fr' | 'ar';
 
@@ -25,6 +25,10 @@ export interface BusinessCard {
   instagram: string;
   facebook: string;
   tiktok?: string;
+  snapchat?: string;
+  linkedin?: string;
+  twitter?: string;
+  youtube?: string;
   website: string;
   primary_action: PrimaryActionType;
   primary_action_label?: string; // Custom CTA button text. If empty, falls back to default action text.
@@ -39,6 +43,10 @@ export interface BusinessCard {
   instagram_label?: string;   // Default: "Instagram"
   facebook_label?: string;    // Default: "Facebook"
   tiktok_label?: string;      // Default: "TikTok"
+  snapchat_label?: string;    // Default: "Snapchat"
+  linkedin_label?: string;    // Default: "LinkedIn"
+  twitter_label?: string;     // Default: "X (Twitter)"
+  youtube_label?: string;     // Default: "YouTube"
   whatsapp_label?: string;    // Default: "WhatsApp"
   email_label?: string;       // Default: "Email"
   localisation_label?: string;// Default: "Location"

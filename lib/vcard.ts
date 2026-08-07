@@ -12,6 +12,10 @@ export function downloadVCard(card: BusinessCard) {
   const instagram = card.instagram ? card.instagram.trim() : '';
   const facebook = card.facebook ? card.facebook.trim() : '';
   const tiktok = card.tiktok ? card.tiktok.trim() : '';
+  const snapchat = card.snapchat ? card.snapchat.trim() : '';
+  const linkedin = card.linkedin ? card.linkedin.trim() : '';
+  const twitter = card.twitter ? card.twitter.trim() : '';
+  const youtube = card.youtube ? card.youtube.trim() : '';
 
   let vcard = `BEGIN:VCARD\nVERSION:3.0\nN:;${name};;;\nFN:${name}\n`;
   if (name) vcard += `ORG:${name}\n`;
@@ -25,6 +29,10 @@ export function downloadVCard(card: BusinessCard) {
   if (instagram) vcard += `X-SOCIALPROFILE;TYPE=instagram:${instagram}\n`;
   if (facebook) vcard += `X-SOCIALPROFILE;TYPE=facebook:${facebook}\n`;
   if (tiktok) vcard += `X-SOCIALPROFILE;TYPE=tiktok:${tiktok}\n`;
+  if (snapchat) vcard += `X-SOCIALPROFILE;TYPE=snapchat:${snapchat}\n`;
+  if (linkedin) vcard += `X-SOCIALPROFILE;TYPE=linkedin:${linkedin}\n`;
+  if (twitter) vcard += `X-SOCIALPROFILE;TYPE=twitter:${twitter}\n`;
+  if (youtube) vcard += `X-SOCIALPROFILE;TYPE=youtube:${youtube}\n`;
   vcard += `END:VCARD`;
 
   const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });

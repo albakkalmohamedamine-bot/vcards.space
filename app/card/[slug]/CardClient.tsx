@@ -64,6 +64,10 @@ const ACTION_OPTIONS = [
   { value: 'instagram', label: 'View Instagram' },
   { value: 'facebook', label: 'View Facebook' },
   { value: 'tiktok', label: 'View TikTok' },
+  { value: 'snapchat', label: 'View Snapchat' },
+  { value: 'linkedin', label: 'View LinkedIn' },
+  { value: 'twitter', label: 'View X (Twitter)' },
+  { value: 'youtube', label: 'View YouTube' },
 ];
 
 export default function CardClient({ 
@@ -231,6 +235,27 @@ export default function CardClient({
           <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.68 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.33-6.33V9.05a8.16 8.16 0 0 0 4.92 1.58V7.18a4.85 4.85 0 0 1-1-.49z"/>
         </svg>
       );
+      case 'snapchat': return (
+        <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12.001 2c-3.132 0-5.32 2.215-5.32 4.961 0 .864.225 1.637.587 2.292-.533.153-1.258.411-1.802.946-.431.424-.51.983-.238 1.488.225.418.729.68 1.253.868-.041.341-.12.879-.12 1.272 0 1.95 1.547 3.518 4.298 3.518.358 0 .749-.03 1.15-.09.313.364.787.607 1.192.607.404 0 .878-.243 1.191-.607.402.06.793.09 1.152.09 2.75 0 4.297-1.568 4.297-3.518 0-.393-.079-.931-.12-1.272.524-.188 1.028-.45 1.253-.868.272-.505.193-1.064-.238-1.488-.544-.535-1.269-.793-1.802-.946.362-.655.587-1.428.587-2.292C17.321 4.215 15.133 2 12.001 2z"/>
+        </svg>
+      );
+      case 'linkedin': return (
+        <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.72a1.47 1.47 0 1 0 0 2.94 1.47 1.47 0 0 0 0-2.94Z"/>
+        </svg>
+      );
+      case 'twitter':
+      case 'x': return (
+        <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      );
+      case 'youtube': return (
+        <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+        </svg>
+      );
       case 'wifi_password': return <Wifi className={className} />;
       default: return <ExternalLink className={className} />;
     }
@@ -358,6 +383,42 @@ export default function CardClient({
           </svg>
         ),
         url: c.tiktok.startsWith('http') ? c.tiktok : `https://tiktok.com/@${c.tiktok.replace('@', '')}`,
+      });
+    }
+
+    if (c.snapchat) {
+      rows.push({
+        id: 'snapchat',
+        label: getLocalizedRowLabel(c.snapchat_label, 'snapchat', cardLang),
+        icon: getActionIcon('snapchat', 'w-5 h-5'),
+        url: c.snapchat.startsWith('http') ? c.snapchat : `https://snapchat.com/add/${c.snapchat.replace('@', '')}`,
+      });
+    }
+
+    if (c.linkedin) {
+      rows.push({
+        id: 'linkedin',
+        label: getLocalizedRowLabel(c.linkedin_label, 'linkedin', cardLang),
+        icon: getActionIcon('linkedin', 'w-5 h-5'),
+        url: c.linkedin.startsWith('http') ? c.linkedin : `https://linkedin.com/${c.linkedin.startsWith('in/') || c.linkedin.startsWith('company/') ? c.linkedin : `in/${c.linkedin}`}`,
+      });
+    }
+
+    if (c.twitter) {
+      rows.push({
+        id: 'twitter',
+        label: getLocalizedRowLabel(c.twitter_label, 'twitter', cardLang),
+        icon: getActionIcon('twitter', 'w-5 h-5'),
+        url: c.twitter.startsWith('http') ? c.twitter : `https://x.com/${c.twitter.replace('@', '')}`,
+      });
+    }
+
+    if (c.youtube) {
+      rows.push({
+        id: 'youtube',
+        label: getLocalizedRowLabel(c.youtube_label, 'youtube', cardLang),
+        icon: getActionIcon('youtube', 'w-5 h-5'),
+        url: c.youtube.startsWith('http') ? c.youtube : `https://youtube.com/${c.youtube.startsWith('@') ? c.youtube : `@${c.youtube}`}`,
       });
     }
 
@@ -490,6 +551,11 @@ export default function CardClient({
       case 'instagram': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://instagram.com/${trimmed.replace('@', '')}`;
       case 'facebook': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://facebook.com/${trimmed}`;
       case 'tiktok': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://tiktok.com/@${trimmed.replace('@', '')}`;
+      case 'snapchat': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://snapchat.com/add/${trimmed.replace('@', '')}`;
+      case 'linkedin': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://linkedin.com/${trimmed.startsWith('in/') || trimmed.startsWith('company/') ? trimmed : `in/${trimmed}`}`;
+      case 'twitter':
+      case 'x': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://x.com/${trimmed.replace('@', '')}`;
+      case 'youtube': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://youtube.com/${trimmed.startsWith('@') ? trimmed : `@${trimmed}`}`;
       default: return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
     }
   };
@@ -909,7 +975,7 @@ export default function CardClient({
                 {card[card.primary_action] && (
                   <a 
                     href={primaryHref}
-                    target={['whatsapp', 'website', 'instagram', 'facebook', 'tiktok', 'address'].includes(card.primary_action) ? "_blank" : undefined}
+                    target={['whatsapp', 'website', 'instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube', 'address'].includes(card.primary_action) ? "_blank" : undefined}
                     rel="noopener noreferrer"
                     className="w-full py-4 px-6 rounded-2xl font-bold text-white flex items-center justify-center gap-3 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
                     style={{ 
@@ -944,7 +1010,7 @@ export default function CardClient({
                 
                 <div className="grid grid-cols-3 gap-y-7 gap-x-2 justify-items-center max-w-[320px] mx-auto">
                   {(() => {
-                    const secondaryActions = ['phone', 'landline', 'whatsapp', 'email', 'address', 'website', 'instagram', 'facebook', 'tiktok', 'wifi_password', 'delivery_number']
+                    const secondaryActions = ['phone', 'landline', 'whatsapp', 'email', 'address', 'website', 'instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube', 'wifi_password', 'delivery_number']
                       .filter(k => {
                         if (k === 'delivery_number') {
                           return card.delivery_enabled && Boolean(card.delivery_number);
@@ -1019,7 +1085,7 @@ export default function CardClient({
                           <a 
                             key={actionKey}
                             href={getActionHref(actionKey, card[actionKey as keyof typeof card] as string)}
-                            target={['whatsapp', 'website', 'instagram', 'facebook', 'tiktok', 'address'].includes(actionKey) ? "_blank" : undefined}
+                            target={['whatsapp', 'website', 'instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube', 'address'].includes(actionKey) ? "_blank" : undefined}
                             rel="noopener noreferrer"
                             className="group flex flex-col items-center w-20"
                           >
