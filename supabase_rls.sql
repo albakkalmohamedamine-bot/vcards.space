@@ -118,6 +118,9 @@ ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS delivery_enabled b
 ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS delivery_number text;
 ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS delivery_label text;
 ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS first_priority_field text;
+ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS quick_action_1 text;
+ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS quick_action_2 text;
+ALTER TABLE IF EXISTS business_cards ADD COLUMN IF NOT EXISTS quick_action_3 text;
 
 -- Database Indexing for fast lookups
 CREATE INDEX IF NOT EXISTS idx_business_cards_slug ON business_cards(slug);

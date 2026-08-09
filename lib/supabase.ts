@@ -7,4 +7,9 @@ if (!supabaseUrl || !supabaseKey) {
   console.warn("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.");
 }
 
-export const supabase = createBrowserClient(supabaseUrl || '', supabaseKey || '');
+export const supabase = createBrowserClient(
+  supabaseUrl || '',
+  supabaseKey || ''
+);
+
+

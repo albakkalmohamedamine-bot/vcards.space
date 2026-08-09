@@ -1,17 +1,19 @@
 import { supabase } from './supabase';
 import { Session, User } from '@supabase/supabase-js';
 
+export const TEMPORARY_ADMIN_MODE = false;
+
 export async function getSession(): Promise<Session | null> {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
-    if (error || !session) {
-      return null;
+    if (session && !error) {
+      return session;
     }
-    return session;
   } catch (e) {
     console.error('Error fetching Supabase auth session:', e);
-    return null;
   }
+
+  return null;
 }
 
 export async function getUser(): Promise<User | null> {
@@ -35,13 +37,13 @@ export async function signInWithEmail(
     });
 
     if (error || !data.session) {
-      return { success: false, error: error?.message || 'Invalid credentials' };
+      return { success: false, error: error?.message || 'Invalid email or password' };
     }
 
     return { success: true, session: data.session };
   } catch (err) {
     console.error('Sign in error:', err);
-    return { success: false, error: 'Invalid credentials' };
+    return { success: false, error: 'Invalid email or password' };
   }
 }
 
@@ -54,4 +56,5 @@ export async function signOut(): Promise<{ success: boolean }> {
     return { success: false };
   }
 }
+
 

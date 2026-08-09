@@ -1,14 +1,5 @@
 import { BusinessCard } from './types';
-import { INITIAL_MOCK_CARDS } from './mockCards';
 import { supabase } from './supabase';
-
-const isClient = typeof window !== 'undefined';
-const LOCAL_STORAGE_KEY = 'vcard_business_cards_local_v1';
-const DB_NAME = 'vcard_db';
-const DB_VERSION = 1;
-const STORE_NAME = 'cards';
-
-let memoryCardsCache: BusinessCard[] | null = null;
 
 // Convert DB row to BusinessCard object
 function mapRowToCard(row: any): BusinessCard {
@@ -18,6 +9,7 @@ function mapRowToCard(row: any): BusinessCard {
     tagline: row.tagline || '',
     themeColor: row.theme_color || '#25394d',
     logo: row.logo || '',
+    cover_photo_url: row.cover_photo_url || row.cover_photo || '',
     language: row.language || 'en',
     layout: row.layout || 'design1',
     phone: row.phone || '',
@@ -64,6 +56,9 @@ function mapRowToCard(row: any): BusinessCard {
     delivery_number: row.delivery_number || '',
     delivery_label: row.delivery_label || 'Delivery',
     first_priority_field: row.first_priority_field || '',
+    quick_action_1: row.quick_action_1 || '',
+    quick_action_2: row.quick_action_2 || '',
+    quick_action_3: row.quick_action_3 || '',
   };
 }
 
@@ -75,6 +70,7 @@ function mapCardToRow(card: BusinessCard) {
     tagline: card.tagline || '',
     theme_color: card.themeColor || '#25394d',
     logo: card.logo || null,
+    cover_photo_url: card.cover_photo_url || null,
     language: card.language || 'en',
     layout: card.layout || 'design1',
     phone: card.phone || '',
@@ -121,6 +117,9 @@ function mapCardToRow(card: BusinessCard) {
     delivery_number: card.delivery_number || null,
     delivery_label: card.delivery_label || null,
     first_priority_field: card.first_priority_field || null,
+    quick_action_1: card.quick_action_1 || null,
+    quick_action_2: card.quick_action_2 || null,
+    quick_action_3: card.quick_action_3 || null,
   };
 }
 
@@ -216,153 +215,6 @@ async function uploadBase64ToSupabaseStorage(fileData: string, prefix: string): 
   }
 }
 
-// IndexedDB Helper
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (!isClient || !('indexedDB' in window)) {
-      return reject(new Error('IndexedDB not available'));
-    }
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'slug' });
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error('Failed to open IndexedDB'));
-  });
-}
-
-async function getCardsFromIndexedDB(): Promise<BusinessCard[]> {
-  try {
-    const db = await openDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => resolve([]);
-    });
-  } catch (err) {
-    console.warn('IndexedDB load failed:', err);
-    return [];
-  }
-}
-
-async function saveCardsToIndexedDB(cards: BusinessCard[]): Promise<void> {
-  try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.clear();
-    for (const card of cards) {
-      store.put(card);
-    }
-    return new Promise((resolve) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
-    });
-  } catch (err) {
-    console.warn('IndexedDB save failed:', err);
-  }
-}
-
-// Helper to retrieve cards from localStorage
-function getStoredCardsSync(): BusinessCard[] {
-  if (!isClient) return INITIAL_MOCK_CARDS;
-  if (memoryCardsCache && memoryCardsCache.length > 0) {
-    return memoryCardsCache;
-  }
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (!raw) {
-      try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_MOCK_CARDS));
-      } catch {
-        // ignore quota error on initial seed
-      }
-      memoryCardsCache = INITIAL_MOCK_CARDS;
-      return INITIAL_MOCK_CARDS;
-    }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      memoryCardsCache = parsed;
-      return parsed;
-    }
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_MOCK_CARDS));
-    } catch {
-      // ignore
-    }
-    memoryCardsCache = INITIAL_MOCK_CARDS;
-    return INITIAL_MOCK_CARDS;
-  } catch (err) {
-    console.error('Error reading cards from localStorage:', err);
-    memoryCardsCache = INITIAL_MOCK_CARDS;
-    return INITIAL_MOCK_CARDS;
-  }
-}
-
-// Helper to write cards back safely to localStorage with fallback
-function setStoredCardsSync(cards: BusinessCard[]) {
-  if (!isClient) return;
-  try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cards));
-  } catch (err) {
-    try {
-      const lightweightCards = cards.map(c => {
-        const isMenuTooBig = Boolean(c.menu_pdf && c.menu_pdf.length > 30000);
-        const isLogoTooBig = Boolean(c.logo && c.logo.length > 30000);
-        if (isMenuTooBig || isLogoTooBig) {
-          return {
-            ...c,
-            menu_pdf: isMenuTooBig ? '' : c.menu_pdf,
-            logo: isLogoTooBig ? '' : c.logo,
-          };
-        }
-        return c;
-      });
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(lightweightCards));
-    } catch (fallbackErr) {
-      console.warn('localStorage quota exceeded. Cards remain persisted in IndexedDB and memory cache.', fallbackErr);
-    }
-  }
-}
-
-async function persistCards(cards: BusinessCard[]): Promise<void> {
-  memoryCardsCache = cards;
-
-  if (isClient) {
-    await saveCardsToIndexedDB(cards);
-  }
-
-  setStoredCardsSync(cards);
-}
-
-function mergeWithLocalCache(fetchedCards: BusinessCard[]): BusinessCard[] {
-  const localCards = memoryCardsCache || (isClient ? getStoredCardsSync() : null) || [];
-  const localMap = new Map<string, BusinessCard>();
-  localCards.forEach(c => {
-    if (c.slug) localMap.set(c.slug, c);
-  });
-
-  return fetchedCards.map(c => {
-    const local = localMap.get(c.slug);
-    if (local) {
-      return {
-        ...c,
-        wifi_password: c.wifi_password || local.wifi_password || '',
-        wifi_password_label: c.wifi_password_label || local.wifi_password_label || 'WiFi Password',
-        delivery_enabled: c.delivery_enabled !== undefined ? Boolean(c.delivery_enabled) : (local.delivery_enabled ?? false),
-        delivery_number: c.delivery_number || local.delivery_number || '',
-        delivery_label: c.delivery_label || local.delivery_label || 'Delivery',
-      };
-    }
-    return c;
-  });
-}
-
 export async function getCards(): Promise<BusinessCard[]> {
   try {
     const { data: rows, error } = await supabase
@@ -370,42 +222,16 @@ export async function getCards(): Promise<BusinessCard[]> {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && Array.isArray(rows) && rows.length > 0) {
-      let cards = rows.map(mapRowToCard);
-      cards = mergeWithLocalCache(cards);
-      memoryCardsCache = cards;
-      if (isClient) {
-        saveCardsToIndexedDB(cards).catch(() => {});
-        setStoredCardsSync(cards);
-      }
-      return cards;
+    if (!error && Array.isArray(rows)) {
+      return rows.map(mapRowToCard);
+    }
+    if (error) {
+      console.error('Error fetching cards from Supabase:', error);
     }
   } catch (err) {
-    console.warn('Error fetching cards from Supabase:', err);
+    console.error('Error fetching cards from Supabase:', err);
   }
-
-  if (!isClient) return INITIAL_MOCK_CARDS;
-
-  if (memoryCardsCache && memoryCardsCache.length > 0) {
-    return memoryCardsCache;
-  }
-
-  const idbCards = await getCardsFromIndexedDB();
-  if (idbCards && idbCards.length > 0) {
-    memoryCardsCache = idbCards;
-    setStoredCardsSync(idbCards);
-    return idbCards;
-  }
-
-  const localCards = getStoredCardsSync();
-  if (localCards && localCards.length > 0) {
-    memoryCardsCache = localCards;
-    saveCardsToIndexedDB(localCards).catch(() => {});
-    return localCards;
-  }
-
-  memoryCardsCache = INITIAL_MOCK_CARDS;
-  return INITIAL_MOCK_CARDS;
+  return [];
 }
 
 export async function getCardBySlug(slug: string): Promise<BusinessCard | undefined> {
@@ -417,34 +243,15 @@ export async function getCardBySlug(slug: string): Promise<BusinessCard | undefi
       .maybeSingle();
 
     if (!error && row) {
-      const card = mapRowToCard(row);
-      const localCards = memoryCardsCache || (isClient ? getStoredCardsSync() : null) || [];
-      const localCard = localCards.find(c => c.slug === slug);
-      if (localCard) {
-        if (!card.wifi_password && localCard.wifi_password) {
-          card.wifi_password = localCard.wifi_password;
-        }
-        if (!card.wifi_password_label && localCard.wifi_password_label) {
-          card.wifi_password_label = localCard.wifi_password_label;
-        }
-        if (card.delivery_enabled === undefined && localCard.delivery_enabled !== undefined) {
-          card.delivery_enabled = localCard.delivery_enabled;
-        }
-        if (!card.delivery_number && localCard.delivery_number) {
-          card.delivery_number = localCard.delivery_number;
-        }
-        if (!card.delivery_label && localCard.delivery_label) {
-          card.delivery_label = localCard.delivery_label;
-        }
-      }
-      return card;
+      return mapRowToCard(row);
+    }
+    if (error) {
+      console.error('Error fetching card by slug from Supabase:', error);
     }
   } catch (err) {
-    console.warn('Error fetching card by slug from Supabase:', err);
+    console.error('Error fetching card by slug from Supabase:', err);
   }
-
-  const cards = await getCards();
-  return cards.find(c => c.slug === slug);
+  return undefined;
 }
 
 export async function generateUniqueSlug(baseSlug: string, originalSlug?: string): Promise<string> {
@@ -476,6 +283,11 @@ async function processCardAssets(card: BusinessCard, targetSlug: string): Promis
     uploadedLogo = await uploadBase64ToSupabaseStorage(uploadedLogo, `${targetSlug}-logo`);
   }
 
+  let uploadedCover = card.cover_photo_url;
+  if (uploadedCover && (uploadedCover.startsWith('data:') || uploadedCover.startsWith('blob:'))) {
+    uploadedCover = await uploadBase64ToSupabaseStorage(uploadedCover, `${targetSlug}-cover`);
+  }
+
   let uploadedPdf = card.menu_pdf;
   if (uploadedPdf && (uploadedPdf.startsWith('data:') || uploadedPdf.startsWith('blob:'))) {
     uploadedPdf = await uploadBase64ToSupabaseStorage(uploadedPdf, `${targetSlug}-menu`);
@@ -485,6 +297,7 @@ async function processCardAssets(card: BusinessCard, targetSlug: string): Promis
     ...card,
     slug: targetSlug,
     logo: uploadedLogo,
+    cover_photo_url: uploadedCover,
     menu_pdf: uploadedPdf,
     landline: card.landline || '',
     avatar_border_radius: card.avatar_border_radius ?? 50,
@@ -505,10 +318,13 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
   
   let { error: dbError } = result;
 
-  if (dbError && (dbError.message?.includes('wifi_password') || dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
+  if (dbError && (dbError.message?.includes('wifi_password') || dbError.message?.includes('quick_action') || dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
     const fallbackRow: any = { ...row };
     delete fallbackRow.wifi_password;
     delete fallbackRow.wifi_password_label;
+    delete fallbackRow.quick_action_1;
+    delete fallbackRow.quick_action_2;
+    delete fallbackRow.quick_action_3;
     
     let retryQuery = supabase.from('business_cards');
     const { error: retryError } = originalSlug 
@@ -539,10 +355,6 @@ export async function saveCard(newCard: BusinessCard): Promise<{ success: boolea
       return { success: false, error: dbError.message || 'Network error or database failure. Please try again.' };
     }
 
-    const cards = await getCards();
-    const updatedCards = [cardToSave, ...cards.filter(c => c.slug !== uniqueSlug)];
-    await persistCards(updatedCards);
-
     return { success: true, finalSlug: uniqueSlug };
   } catch (err: any) {
     console.error('Error saving card:', err);
@@ -562,18 +374,6 @@ export async function updateCard(originalSlug: string, updatedCard: BusinessCard
       return { success: false, error: dbError.message || 'Network error or database failure. Please try again.' };
     }
 
-    const cards = await getCards();
-    const index = cards.findIndex(c => c.slug === originalSlug);
-
-    let updatedCards: BusinessCard[];
-    if (index >= 0) {
-      updatedCards = [...cards];
-      updatedCards[index] = cardToUpdate;
-    } else {
-      updatedCards = [cardToUpdate, ...cards];
-    }
-
-    await persistCards(updatedCards);
     return { success: true, finalSlug: targetSlug };
   } catch (err: any) {
     console.error('Error updating card:', err);
@@ -590,11 +390,9 @@ export async function deleteCard(slug: string): Promise<{ success: boolean; erro
 
     if (dbError) {
       console.error('Supabase DB Delete error:', dbError);
+      return { success: false, error: dbError.message || 'Failed to delete card.' };
     }
 
-    const cards = await getCards();
-    const updatedCards = cards.filter(c => c.slug !== slug);
-    await persistCards(updatedCards);
     return { success: true };
   } catch (err: any) {
     console.error('Error deleting card:', err);
@@ -613,5 +411,3 @@ export function slugify(text: string): string {
     .replace(/^-+/, '')
     .replace(/-+$/, '');
 }
-
-

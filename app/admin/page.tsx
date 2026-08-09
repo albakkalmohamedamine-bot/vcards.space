@@ -117,7 +117,7 @@ const getActionIcon = (type: string, className = 'w-5 h-5') => {
     );
     case 'snapchat': return (
       <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12.001 2c-3.132 0-5.32 2.215-5.32 4.961 0 .864.225 1.637.587 2.292-.533.153-1.258.411-1.802.946-.431.424-.51.983-.238 1.488.225.418.729.68 1.253.868-.041.341-.12.879-.12 1.272 0 1.95 1.547 3.518 4.298 3.518.358 0 .749-.03 1.15-.09.313.364.787.607 1.192.607.404 0 .878-.243 1.191-.607.402.06.793.09 1.152.09 2.75 0 4.297-1.568 4.297-3.518 0-.393-.079-.931-.12-1.272.524-.188 1.028-.45 1.253-.868.272-.505.193-1.064-.238-1.488-.544-.535-1.269-.793-1.802-.946.362-.655.587-1.428.587-2.292C17.321 4.215 15.133 2 12.001 2z"/>
+        <path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301.165-.088.344-.104.464-.104.182 0 .359.029.509.09.45.149.734.479.734.838.015.449-.39.839-1.213 1.168-.089.029-.209.075-.344.119-.45.135-1.139.36-1.333.81-.09.224-.061.524.12.868l.015.015c.06.136 1.526 3.475 4.791 4.014.255.044.435.27.42.509 0 .075-.015.149-.045.225-.24.569-1.273.988-3.146 1.271-.059.091-.12.375-.164.57-.029.179-.074.36-.134.553-.076.271-.27.405-.555.405h-.03c-.135 0-.313-.031-.538-.074-.36-.075-.765-.135-1.273-.135-.3 0-.599.015-.913.074-.6.104-1.123.464-1.723.884-.853.599-1.826 1.288-3.294 1.288-.06 0-.119-.015-.18-.015h-.149c-1.468 0-2.427-.675-3.279-1.288-.599-.42-1.107-.779-1.707-.884-.314-.045-.629-.074-.928-.074-.54 0-.958.089-1.272.149-.211.043-.391.074-.54.074-.374 0-.523-.224-.583-.42-.061-.192-.09-.389-.135-.567-.046-.181-.105-.494-.166-.57-1.918-.222-2.95-.642-3.189-1.226-.031-.063-.052-.15-.055-.225-.015-.243.165-.465.42-.509 3.264-.54 4.73-3.879 4.791-4.02l.016-.029c.18-.345.224-.645.119-.869-.195-.434-.884-.658-1.332-.809-.121-.029-.24-.074-.346-.119-1.107-.435-1.257-.93-1.197-1.273.09-.479.674-.793 1.168-.793.146 0 .27.029.383.074.42.194.789.3 1.104.3.234 0 .384-.06.465-.105l-.046-.569c-.098-1.626-.225-3.651.307-4.837C7.392 1.077 10.739.807 11.727.807l.419-.015h.06z"/>
       </svg>
     );
     case 'linkedin': return (
@@ -179,6 +179,7 @@ export default function AdminPage() {
     tagline: '',
     themeColor: '#1B2A4A',
     logo: '',
+    cover_photo_url: '',
     language: 'en' as BusinessLanguage,
     layout: 'design1' as CardLayout,
     phone: '',
@@ -227,6 +228,9 @@ export default function AdminPage() {
     delivery_number: '',
     delivery_label: 'Delivery',
     first_priority_field: '',
+    quick_action_1: '',
+    quick_action_2: '',
+    quick_action_3: '',
   });
 
   const [phoneCode, setPhoneCode] = useState<string>(DEFAULT_COUNTRY.dialCode);
@@ -384,18 +388,26 @@ export default function AdminPage() {
   useEffect(() => {
     let isMounted = true;
 
-    getSession().then((session) => {
-      if (!isMounted) return;
+    async function initializeAdminPage() {
+      try {
+        let session = await getSession();
+        if (!session) {
+          // Retry once after 150ms in case Supabase client is restoring session from cookies/storage
+          await new Promise((r) => setTimeout(r, 150));
+          session = await getSession();
+        }
 
-      if (!session) {
-        setIsAuthenticated(false);
-        router.replace('/login');
-        return;
-      }
+        if (!isMounted) return;
 
-      setIsAuthenticated(true);
+        if (!session) {
+          setIsAuthenticated(false);
+          router.replace('/login');
+          return;
+        }
 
-      getCards().then((cards) => {
+        setIsAuthenticated(true);
+
+        const cards = await getCards();
         if (!isMounted) return;
         setAllCards(cards);
         setExistingSlugs(cards.map((c) => c.slug));
@@ -446,6 +458,7 @@ export default function AdminPage() {
                 tagline: cardToEdit.tagline || '',
                 themeColor: cardToEdit.themeColor,
                 logo: cardToEdit.logo || '',
+                cover_photo_url: cardToEdit.cover_photo_url || '',
                 language: cardToEdit.language || 'en',
                 layout: cardToEdit.layout || 'design1',
                 phone: parsedPhone.localNumber,
@@ -492,6 +505,9 @@ export default function AdminPage() {
                 delivery_number: cardToEdit.delivery_number || '',
                 delivery_label: cardToEdit.delivery_label || 'Delivery',
                 first_priority_field: cardToEdit.first_priority_field || '',
+                quick_action_1: cardToEdit.quick_action_1 || '',
+                quick_action_2: cardToEdit.quick_action_2 || '',
+                quick_action_3: cardToEdit.quick_action_3 || '',
               });
               setSlug(cardToEdit.slug);
             }
@@ -510,12 +526,20 @@ export default function AdminPage() {
           }
         }
         setIsInitialized(true);
-      });
-    });
+      } catch (err) {
+        console.error("Error initializing admin page:", err);
+      }
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    initializeAdminPage();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session && isMounted) {
-        router.replace('/login');
+        const currentSession = await getSession();
+        if (!currentSession) {
+          setIsAuthenticated(false);
+          router.replace('/login');
+        }
       }
     });
 
@@ -623,6 +647,7 @@ export default function AdminPage() {
               tagline: cardToEdit.tagline || '',
               themeColor: cardToEdit.themeColor,
               logo: cardToEdit.logo || '',
+              cover_photo_url: cardToEdit.cover_photo_url || '',
               language: cardToEdit.language || 'en',
               layout: cardToEdit.layout || 'design1',
               phone: parsedPhone.localNumber,
@@ -669,6 +694,9 @@ export default function AdminPage() {
               delivery_number: cardToEdit.delivery_number || '',
               delivery_label: cardToEdit.delivery_label || 'Delivery',
               first_priority_field: cardToEdit.first_priority_field || '',
+              quick_action_1: cardToEdit.quick_action_1 || '',
+              quick_action_2: cardToEdit.quick_action_2 || '',
+              quick_action_3: cardToEdit.quick_action_3 || '',
             });
             setSlug(cardToEdit.slug);
           }
@@ -679,6 +707,7 @@ export default function AdminPage() {
           tagline: '',
           themeColor: '#1B2A4A',
           logo: '',
+          cover_photo_url: '',
           language: 'en',
           layout: 'design1',
           phone: '',
@@ -725,6 +754,9 @@ export default function AdminPage() {
           delivery_number: '',
           delivery_label: 'Delivery',
           first_priority_field: '',
+          quick_action_1: '',
+          quick_action_2: '',
+          quick_action_3: '',
         });
         setEditingSlug(null);
         setSlug('');
@@ -872,6 +904,28 @@ export default function AdminPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     validateAndReadImage(file);
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file (PNG, JPG, WebP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const rawDataUrl = event.target?.result as string;
+      if (rawDataUrl) {
+        const compressed = await compressLogoImage(rawDataUrl, 1200, 800);
+        setForm(prev => ({ ...prev, cover_photo_url: compressed }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveCover = () => {
+    setForm(prev => ({ ...prev, cover_photo_url: '' }));
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -1243,6 +1297,7 @@ export default function AdminPage() {
       tagline: form.tagline.trim(),
       themeColor: form.themeColor,
       logo: form.logo || undefined,
+      cover_photo_url: form.cover_photo_url || undefined,
       language: form.language || 'en',
       layout: form.layout || 'design1',
       phone: formattedPhone,
@@ -1289,6 +1344,9 @@ export default function AdminPage() {
       delivery_number: form.delivery_number.trim() || undefined,
       delivery_label: form.delivery_label.trim() || undefined,
       first_priority_field: form.first_priority_field || undefined,
+      quick_action_1: form.quick_action_1 || undefined,
+      quick_action_2: form.quick_action_2 || undefined,
+      quick_action_3: form.quick_action_3 || undefined,
     };
 
     setCardToConfirm(newCard);
@@ -1318,6 +1376,7 @@ export default function AdminPage() {
         tagline: '',
         themeColor: '#1B2A4A',
         logo: '',
+        cover_photo_url: '',
         language: 'en',
         layout: 'design1',
         phone: '',
@@ -1364,6 +1423,9 @@ export default function AdminPage() {
         delivery_number: '',
         delivery_label: 'Delivery',
         first_priority_field: '',
+        quick_action_1: '',
+        quick_action_2: '',
+        quick_action_3: '',
       });
       setSlug('');
       setExtractedColors(null);
@@ -1529,7 +1591,7 @@ export default function AdminPage() {
                     <span className="block text-[11px] font-mono font-bold uppercase text-slate-500 tracking-wider mb-2">
                       Header Style Sub-Choice
                     </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <button
                         type="button"
                         onClick={() => setForm(prev => ({ ...prev, layout: 'design1' }))}
@@ -1578,6 +1640,37 @@ export default function AdminPage() {
                         <div className="h-8 w-full rounded-md overflow-hidden relative border border-slate-200" style={{ backgroundColor: form.themeColor || '#1B2A4A' }} />
                         <p className="text-[10px] text-slate-500 mt-2 font-sans leading-tight">
                           Formal straight horizontal flat header.
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, layout: 'design3', address_type: 'address' }))}
+                        className={`p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          form.layout === 'design3'
+                            ? 'border-indigo-600 bg-white text-slate-900 shadow-sm ring-2 ring-indigo-500/10'
+                            : 'border-slate-200 bg-slate-100/60 hover:border-slate-300 text-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-bold text-xs">Design 3</span>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                            form.layout === 'design3' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {form.layout === 'design3' ? 'Selected' : 'Cover Banner'}
+                          </span>
+                        </div>
+                        <div className="h-8 w-full rounded-md overflow-hidden relative border border-slate-200 bg-slate-200">
+                          {form.cover_photo_url ? (
+                            <img src={form.cover_photo_url} className="w-full h-full object-cover" alt="Cover" />
+                          ) : (
+                            <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[9px] text-white font-mono">
+                              Cover Banner
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-2 font-sans leading-tight">
+                          Full cover photo header banner with card layout.
                         </p>
                       </button>
                     </div>
@@ -1722,11 +1815,14 @@ export default function AdminPage() {
                     <option value="en">🇬🇧 English (English)</option>
                     <option value="fr">🇫🇷 French (Français)</option>
                     <option value="ar">🇲🇦 Arabic (العربية)</option>
+                    <option value="de">🇩🇪 German (Deutsch)</option>
+                    <option value="es">🇪🇸 Spanish (Español)</option>
+                    <option value="nl">🇳🇱 Dutch (Nederlands)</option>
                   </select>
                   <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
                 <p className="text-[10px] text-slate-500 font-sans mt-1.5 leading-relaxed">
-                  Controls language for action buttons, titles, and labels on your client's card page.
+                  Default card language. Public visitors can also switch language using flag icons on the card.
                 </p>
               </div>
 
@@ -1938,6 +2034,36 @@ export default function AdminPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* Cover Photo Upload Pipeline - ONLY FOR DESIGN 3 */}
+                {form.layout === 'design3' && (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
+                        Header Cover Photo <span className="text-indigo-600">(For Design 3)</span>
+                      </label>
+                    </div>
+                    {form.cover_photo_url ? (
+                      <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 group">
+                        <img src={form.cover_photo_url} alt="Cover Preview" className="w-full h-32 object-cover" />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <label htmlFor="cover-upload-input" className="px-3 py-1.5 bg-white rounded-xl text-xs font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-all shadow-xs">
+                            Change Cover
+                          </label>
+                          <button type="button" onClick={handleRemoveCover} className="px-3 py-1.5 bg-red-600 rounded-xl text-xs font-bold text-white cursor-pointer hover:bg-red-700 transition-all shadow-xs">
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label htmlFor="cover-upload-input" className="flex flex-col items-center justify-center h-28 border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-white hover:bg-slate-50/80 rounded-2xl cursor-pointer transition-all p-4 text-center">
+                        <span className="text-xs font-bold text-indigo-600">Upload Header Cover Photo</span>
+                        <span className="text-[10px] text-slate-400 mt-1">PNG, JPG, WebP up to 10MB (Auto-compressed client-side)</span>
+                      </label>
+                    )}
+                    <input id="cover-upload-input" type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+                  </div>
+                )}
               </div>
 
               {/* Brand Color System */}
@@ -2963,17 +3089,19 @@ export default function AdminPage() {
                       <label htmlFor="phone-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
                         Mobile Phone Number
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setForm(prev => ({ ...prev, primary_action: 'phone' }))}
-                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer ${
-                          form.primary_action === 'phone'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200'
-                        }`}
-                      >
-                        {form.primary_action === 'phone' ? '✓ Selected as CTA' : '+ Use as CTA'}
-                      </button>
+                      {form.layout !== 'design3' && (
+                        <button
+                          type="button"
+                          onClick={() => setForm(prev => ({ ...prev, primary_action: 'phone' }))}
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                            form.primary_action === 'phone'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200'
+                          }`}
+                        >
+                          {form.primary_action === 'phone' ? '✓ Selected as CTA' : '+ Use as CTA'}
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center w-full rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/25 focus-within:border-indigo-600 transition-all shadow-2xs">
                       <div className="relative shrink-0 w-[110px] sm:w-[120px]">
@@ -3021,17 +3149,19 @@ export default function AdminPage() {
                       <label htmlFor="landline-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
                         Landline / Fixed Phone (Fixe)
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setForm(prev => ({ ...prev, primary_action: 'landline' }))}
-                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer ${
-                          form.primary_action === 'landline'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200'
-                        }`}
-                      >
-                        {form.primary_action === 'landline' ? '✓ Selected as CTA' : '+ Use as CTA'}
-                      </button>
+                      {form.layout !== 'design3' && (
+                        <button
+                          type="button"
+                          onClick={() => setForm(prev => ({ ...prev, primary_action: 'landline' }))}
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                            form.primary_action === 'landline'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200'
+                          }`}
+                        >
+                          {form.primary_action === 'landline' ? '✓ Selected as CTA' : '+ Use as CTA'}
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center w-full rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/25 focus-within:border-indigo-600 transition-all shadow-2xs">
                       <div className="relative shrink-0 w-[110px] sm:w-[120px]">
@@ -3079,17 +3209,19 @@ export default function AdminPage() {
                       <label htmlFor="whatsapp-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
                         WhatsApp Number
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setForm(prev => ({ ...prev, primary_action: 'whatsapp' }))}
-                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer ${
-                          form.primary_action === 'whatsapp'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200'
-                        }`}
-                      >
-                        {form.primary_action === 'whatsapp' ? '✓ Selected as CTA' : '+ Use as CTA'}
-                      </button>
+                      {form.layout !== 'design3' && (
+                        <button
+                          type="button"
+                          onClick={() => setForm(prev => ({ ...prev, primary_action: 'whatsapp' }))}
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                            form.primary_action === 'whatsapp'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200'
+                          }`}
+                        >
+                          {form.primary_action === 'whatsapp' ? '✓ Selected as CTA' : '+ Use as CTA'}
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center w-full rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/25 focus-within:border-indigo-600 transition-all shadow-2xs">
                       <div className="relative shrink-0 w-[110px] sm:w-[120px]">
@@ -3136,17 +3268,19 @@ export default function AdminPage() {
                       <label htmlFor="email-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
                         Email Address
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setForm(prev => ({ ...prev, primary_action: 'email' }))}
-                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer ${
-                          form.primary_action === 'email'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200'
-                        }`}
-                      >
-                        {form.primary_action === 'email' ? '✓ Selected as CTA' : '+ Use as CTA'}
-                      </button>
+                      {form.layout !== 'design3' && (
+                        <button
+                          type="button"
+                          onClick={() => setForm(prev => ({ ...prev, primary_action: 'email' }))}
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                            form.primary_action === 'email'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200'
+                          }`}
+                        >
+                          {form.primary_action === 'email' ? '✓ Selected as CTA' : '+ Use as CTA'}
+                        </button>
+                      )}
                     </div>
                     <input
                       id="email-input"
@@ -3167,17 +3301,19 @@ export default function AdminPage() {
                       <label htmlFor="website-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
                         Website URL
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setForm(prev => ({ ...prev, primary_action: 'website' }))}
-                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer ${
-                          form.primary_action === 'website'
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200'
-                        }`}
-                      >
-                        {form.primary_action === 'website' ? '✓ Selected as CTA' : '+ Use as CTA'}
-                      </button>
+                      {form.layout !== 'design3' && (
+                        <button
+                          type="button"
+                          onClick={() => setForm(prev => ({ ...prev, primary_action: 'website' }))}
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                            form.primary_action === 'website'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200'
+                          }`}
+                        >
+                          {form.primary_action === 'website' ? '✓ Selected as CTA' : '+ Use as CTA'}
+                        </button>
+                      )}
                     </div>
                     <input
                       id="website-input"
@@ -3196,36 +3332,38 @@ export default function AdminPage() {
                   <div className="md:col-span-2 space-y-3" id="address-field">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
                       <label htmlFor="address-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
-                        {form.address_type === 'text' ? 'Custom Text / Note' : 'Physical Address'}
+                        {form.layout === 'design3' || form.address_type !== 'text' ? 'Physical Address' : 'Custom Text / Note'}
                       </label>
 
                       {/* Mode selection toggle */}
-                      <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200/80 self-start sm:self-auto">
-                        <button
-                          type="button"
-                          onClick={() => setForm(prev => ({ ...prev, address_type: 'address' }))}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold font-sans transition-all flex items-center gap-1.5 ${
-                            form.address_type === 'address' || !form.address_type
-                              ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/60'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          <MapPin className="w-3.5 h-3.5" />
-                          Physical Address
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setForm(prev => ({ ...prev, address_type: 'text' }))}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold font-sans transition-all flex items-center gap-1.5 ${
-                            form.address_type === 'text'
-                              ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/60'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          Normal Text
-                        </button>
-                      </div>
+                      {form.layout !== 'design3' && (
+                        <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200/80 self-start sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, address_type: 'address' }))}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold font-sans transition-all flex items-center gap-1.5 ${
+                              form.address_type === 'address' || !form.address_type
+                                ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/60'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <MapPin className="w-3.5 h-3.5" />
+                            Physical Address
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, address_type: 'text' }))}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold font-sans transition-all flex items-center gap-1.5 ${
+                              form.address_type === 'text'
+                                ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/60'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            Normal Text
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <input
@@ -3235,7 +3373,7 @@ export default function AdminPage() {
                       value={form.address}
                       onChange={handleChange}
                       placeholder={
-                        form.address_type === 'text'
+                        form.layout !== 'design3' && form.address_type === 'text'
                           ? 'Available by appointment only / Building 3, Floor 2'
                           : '404 Brick Kiln Lane, Portland, OR 97201'
                       }
@@ -3247,7 +3385,7 @@ export default function AdminPage() {
 
                     {/* Google Maps link field appearing directly under normal text field when selected */}
                     <AnimatePresence>
-                      {form.address_type === 'text' && (
+                      {form.layout !== 'design3' && form.address_type === 'text' && (
                         <motion.div
                           initial={{ opacity: 0, height: 0, y: -6 }}
                           animate={{ opacity: 1, height: 'auto', y: 0 }}
@@ -3508,54 +3646,244 @@ export default function AdminPage() {
               </div>
 
               {/* Primary Call to Action Selection */}
-              <div id="primary_action-field" className="border-t border-slate-150 pt-6">
-                <label htmlFor="primary-action-select" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
-                  Primary Action Button *
-                </label>
-                <div className="relative">
-                  <select
-                    id="primary-action-select"
-                    name="primary_action"
-                    value={form.primary_action}
-                    onChange={handleChange}
-                    className={`w-full h-12 pl-4 pr-10 bg-slate-50 rounded-xl border ${
-                      fieldErrors.primary_action ? 'border-red-400 ring-2 ring-red-400/20' : 'border-slate-200 hover:border-slate-300'
-                    } focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-sm font-sans touch-manipulation appearance-none cursor-pointer shadow-2xs`}
-                  >
-                    {ACTION_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+              {form.layout === 'design3' ? (
+                <div id="primary_action-field" className="border-t border-slate-150 pt-6 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <label className="block text-xs font-mono font-bold uppercase text-slate-800 tracking-wider">
+                        Call to Action Buttons (Select up to 3) *
+                      </label>
+                      <p className="text-slate-600 text-[11px] mt-1 leading-relaxed font-sans">
+                        Design 3 features up to 3 circular Call to Action buttons in the header banner. Choose which fields appear as your action buttons below.
+                      </p>
+                    </div>
+                    {(form.quick_action_1 || form.quick_action_2 || form.quick_action_3) && (
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, quick_action_1: '', quick_action_2: '', quick_action_3: '' }))}
+                        className="text-[10px] font-mono font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors cursor-pointer shadow-2xs"
+                      >
+                        Reset to Default (Phone, WhatsApp, Location)
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                        Action Button 1 (Left)
+                      </label>
+                      <select
+                        name="quick_action_1"
+                        value={form.quick_action_1 || ''}
+                        onChange={handleChange}
+                        className="w-full h-11 px-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-sans font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer shadow-2xs"
+                      >
+                        <option value="">Default (Phone)</option>
+                        <option value="none">-- None / Disabled --</option>
+                        <option value="phone">Mobile Phone</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="address">Location / Address</option>
+                        <option value="instagram">Instagram</option>
+                        <option value="facebook">Facebook</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="snapchat">Snapchat</option>
+                        <option value="linkedin">LinkedIn</option>
+                        <option value="twitter">X (Twitter)</option>
+                        <option value="youtube">YouTube</option>
+                        <option value="email">Email</option>
+                        <option value="landline">Office Line</option>
+                        <option value="website">Website</option>
+                        <option value="delivery">Delivery</option>
+                        <option value="wifi_password">WiFi Password</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                        Action Button 2 (Center)
+                      </label>
+                      <select
+                        name="quick_action_2"
+                        value={form.quick_action_2 || ''}
+                        onChange={handleChange}
+                        className="w-full h-11 px-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-sans font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer shadow-2xs"
+                      >
+                        <option value="">Default (WhatsApp)</option>
+                        <option value="none">-- None / Disabled --</option>
+                        <option value="phone">Mobile Phone</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="address">Location / Address</option>
+                        <option value="instagram">Instagram</option>
+                        <option value="facebook">Facebook</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="snapchat">Snapchat</option>
+                        <option value="linkedin">LinkedIn</option>
+                        <option value="twitter">X (Twitter)</option>
+                        <option value="youtube">YouTube</option>
+                        <option value="email">Email</option>
+                        <option value="landline">Office Line</option>
+                        <option value="website">Website</option>
+                        <option value="delivery">Delivery</option>
+                        <option value="wifi_password">WiFi Password</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-mono font-bold text-slate-600 uppercase mb-1">
+                        Action Button 3 (Right)
+                      </label>
+                      <select
+                        name="quick_action_3"
+                        value={form.quick_action_3 || ''}
+                        onChange={handleChange}
+                        className="w-full h-11 px-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-sans font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer shadow-2xs"
+                      >
+                        <option value="">Default (Location)</option>
+                        <option value="none">-- None / Disabled --</option>
+                        <option value="phone">Mobile Phone</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="address">Location / Address</option>
+                        <option value="instagram">Instagram</option>
+                        <option value="facebook">Facebook</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="snapchat">Snapchat</option>
+                        <option value="linkedin">LinkedIn</option>
+                        <option value="twitter">X (Twitter)</option>
+                        <option value="youtube">YouTube</option>
+                        <option value="email">Email</option>
+                        <option value="landline">Office Line</option>
+                        <option value="website">Website</option>
+                        <option value="delivery">Delivery</option>
+                        <option value="wifi_password">WiFi Password</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Quick Select Chips for Design 3 CTA Buttons */}
+                  <div className="pt-3 border-t border-slate-200/80">
+                    <span className="text-[10px] font-mono font-bold text-slate-700 uppercase block mb-2">
+                      Quick Chips (Click to select up to 3 action buttons):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { id: 'phone', label: 'Phone' },
+                        { id: 'whatsapp', label: 'WhatsApp' },
+                        { id: 'address', label: 'Location' },
+                        { id: 'instagram', label: 'Instagram' },
+                        { id: 'facebook', label: 'Facebook' },
+                        { id: 'tiktok', label: 'TikTok' },
+                        { id: 'snapchat', label: 'Snapchat' },
+                        { id: 'linkedin', label: 'LinkedIn' },
+                        { id: 'twitter', label: 'X (Twitter)' },
+                        { id: 'youtube', label: 'YouTube' },
+                        { id: 'email', label: 'Email' },
+                        { id: 'website', label: 'Website' },
+                        { id: 'delivery', label: 'Delivery' },
+                        { id: 'wifi_password', label: 'WiFi' },
+                      ].map(chip => {
+                        const slot1 = form.quick_action_1 === '' ? 'phone' : form.quick_action_1;
+                        const slot2 = form.quick_action_2 === '' ? 'whatsapp' : form.quick_action_2;
+                        const slot3 = form.quick_action_3 === '' ? 'address' : form.quick_action_3;
+
+                        const isSlot1 = slot1 === chip.id;
+                        const isSlot2 = slot2 === chip.id;
+                        const isSlot3 = slot3 === chip.id;
+                        const isSelected = isSlot1 || isSlot2 || isSlot3;
+
+                        const toggleChip = () => {
+                          if (isSelected) {
+                            setForm(prev => ({
+                              ...prev,
+                              quick_action_1: (prev.quick_action_1 || 'phone') === chip.id ? 'none' : prev.quick_action_1,
+                              quick_action_2: (prev.quick_action_2 || 'whatsapp') === chip.id ? 'none' : prev.quick_action_2,
+                              quick_action_3: (prev.quick_action_3 || 'address') === chip.id ? 'none' : prev.quick_action_3,
+                            }));
+                          } else {
+                            setForm(prev => {
+                              const s1 = prev.quick_action_1 || 'phone';
+                              const s2 = prev.quick_action_2 || 'whatsapp';
+
+                              if (!prev.quick_action_1 || prev.quick_action_1 === 'none') {
+                                return { ...prev, quick_action_1: chip.id };
+                              } else if (!prev.quick_action_2 || prev.quick_action_2 === 'none') {
+                                return { ...prev, quick_action_2: chip.id };
+                              } else {
+                                return { ...prev, quick_action_3: chip.id };
+                              }
+                            });
+                          }
+                        };
+
+                        return (
+                          <button
+                            key={`quick-chip-${chip.id}`}
+                            type="button"
+                            onClick={toggleChip}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold font-sans transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white shadow-xs ring-1 ring-indigo-700'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            {isSelected && <span className="mr-1 text-[10px]">✓</span>}
+                            {chip.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-                <InlineFieldError message={fieldErrors.primary_action} />
-                <p className="text-slate-600 text-[11px] mt-2 leading-relaxed font-sans">
-                  The primary action will appear as a prominent CTA button on the card.
-                </p>
-
-                {/* Custom CTA Button Text */}
-                <div className="mt-4">
-                  <label htmlFor="primary-action-label-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
-                    Custom CTA Button Text <span className="text-slate-400 font-normal text-[10px] lowercase">(Optional)</span>
+              ) : (
+                <div id="primary_action-field" className="border-t border-slate-150 pt-6">
+                  <label htmlFor="primary-action-select" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
+                    Primary Action Button *
                   </label>
-                  <input
-                    id="primary-action-label-input"
-                    type="text"
-                    name="primary_action_label"
-                    value={form.primary_action_label}
-                    onChange={handleChange}
-                    placeholder="e.g. Reserve a Table / Order on WhatsApp"
-                    className="w-full h-12 px-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-sm font-sans touch-manipulation shadow-2xs focus:shadow-sm"
-                  />
-                  <p className="text-[10px] text-slate-500 font-sans mt-1.5 leading-relaxed">
-                    If typed, this message will be used on the CTA button. If left empty, it will show the default message (e.g. &quot;Call Us Now&quot;, &quot;Chat on WhatsApp&quot;, etc.) based on the card language.
+                  <div className="relative">
+                    <select
+                      id="primary-action-select"
+                      name="primary_action"
+                      value={form.primary_action}
+                      onChange={handleChange}
+                      className={`w-full h-12 pl-4 pr-10 bg-slate-50 rounded-xl border ${
+                        fieldErrors.primary_action ? 'border-red-400 ring-2 ring-red-400/20' : 'border-slate-200 hover:border-slate-300'
+                      } focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-sm font-sans touch-manipulation appearance-none cursor-pointer shadow-2xs`}
+                    >
+                      {ACTION_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                  </div>
+                  <InlineFieldError message={fieldErrors.primary_action} />
+                  <p className="text-slate-600 text-[11px] mt-2 leading-relaxed font-sans">
+                    The primary action will appear as a prominent CTA button on the card.
                   </p>
+
+                  {/* Custom CTA Button Text */}
+                  <div className="mt-4">
+                    <label htmlFor="primary-action-label-input" className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
+                      Custom CTA Button Text <span className="text-slate-400 font-normal text-[10px] lowercase">(Optional)</span>
+                    </label>
+                    <input
+                      id="primary-action-label-input"
+                      type="text"
+                      name="primary_action_label"
+                      value={form.primary_action_label}
+                      onChange={handleChange}
+                      placeholder="e.g. Reserve a Table / Order on WhatsApp"
+                      className="w-full h-12 px-4 bg-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-sm font-sans touch-manipulation shadow-2xs focus:shadow-sm"
+                    />
+                    <p className="text-[10px] text-slate-500 font-sans mt-1.5 leading-relaxed">
+                      If typed, this message will be used on the CTA button. If left empty, it will show the default message (e.g. &quot;Call Us Now&quot;, &quot;Chat on WhatsApp&quot;, etc.) based on the card language.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
 
@@ -4232,7 +4560,7 @@ export default function AdminPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                     {/* Design 1 Sub-Choice */}
                     <button
                       type="button"
@@ -4296,6 +4624,45 @@ export default function AdminPage() {
 
                       <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-indigo-600">
                         <span>Select Design 2</span>
+                        <Check className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </button>
+
+                    {/* Design 3 Sub-Choice */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, layout: 'design3' }));
+                        setShowTypePickerModal(false);
+                      }}
+                      className="group text-left p-6 rounded-2xl border-2 border-slate-200 hover:border-indigo-600 bg-slate-50/50 hover:bg-indigo-50/30 transition-all cursor-pointer flex flex-col justify-between space-y-4 shadow-2xs hover:shadow-md"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-mono font-bold uppercase tracking-wider">
+                            Design 3
+                          </span>
+                          <Sparkles className="w-5 h-5 text-indigo-600 group-hover:scale-110 transition-transform" />
+                        </div>
+                        <h4 className="font-serif text-lg font-bold text-slate-900 group-hover:text-indigo-900">
+                          Cover Banner
+                        </h4>
+                        <div className="h-12 w-full rounded-xl overflow-hidden relative border border-slate-200 bg-slate-200 shadow-inner">
+                          {form.cover_photo_url ? (
+                            <img src={form.cover_photo_url} className="w-full h-full object-cover" alt="Cover" />
+                          ) : (
+                            <div className="w-full h-full bg-slate-800 flex items-center justify-center text-xs text-white font-mono">
+                              Cover Photo
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed font-sans">
+                          Cover photo banner header with card-based structured sections.
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-indigo-600">
+                        <span>Select Design 3</span>
                         <Check className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </button>

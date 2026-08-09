@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getCardBySlug } from '@/lib/storage';
 import { BusinessCard, PrimaryActionType, BusinessLanguage } from '@/lib/types';
-import { getCardTranslation } from '@/lib/translations';
+import { getCardTranslation, TRANSLATIONS } from '@/lib/translations';
 import { downloadVCard, downloadDeliveryVCard } from '@/lib/vcard';
 import { GoogleLogo } from '@/components/GoogleLogo';
 import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
 import { 
   Phone, 
   PhoneCall,
+  MessageSquare,
   Star,
   Mail, 
   MapPin, 
@@ -30,6 +31,7 @@ import {
   Smartphone,
   X,
   ChevronRight,
+  ChevronDown,
   PlusSquare,
   MoreVertical,
   BookmarkPlus,
@@ -70,6 +72,548 @@ const ACTION_OPTIONS = [
   { value: 'youtube', label: 'View YouTube' },
 ];
 
+const LANGUAGES: { code: BusinessLanguage; flag: string; label: string }[] = [
+  { code: 'en', flag: '🇬🇧', label: 'English' },
+  { code: 'fr', flag: '🇫🇷', label: 'Français' },
+  { code: 'ar', flag: '🇲🇦', label: 'العربية' },
+  { code: 'de', flag: '🇩🇪', label: 'Deutsch' },
+  { code: 'es', flag: '🇪🇸', label: 'Español' },
+  { code: 'nl', flag: '🇳🇱', label: 'Nederlands' },
+];
+
+function Design3CardView({
+  card,
+  themeColor,
+  handleSaveClick,
+  setShowDeliveryModal,
+  setCopiedWifi,
+  copiedWifi,
+  getActionIcon,
+  getActionHref,
+  currentLang = 'en',
+  cardDefaultLang = 'en',
+}: {
+  card: BusinessCard;
+  themeColor: string;
+  handleSaveClick: () => void;
+  setShowDeliveryModal: (show: boolean) => void;
+  setCopiedWifi: (copied: boolean) => void;
+  copiedWifi: boolean;
+  getActionIcon: (key: string, className?: string) => React.ReactNode;
+  getActionHref: (key: string, val: string) => string;
+  currentLang?: BusinessLanguage;
+  cardDefaultLang?: BusinessLanguage;
+}) {
+  const [coverLoaded, setCoverLoaded] = useState(false);
+
+  // Google Maps URL derivation
+  const mapUrl = card.address_type === 'text' && card.google_maps
+    ? (card.google_maps.startsWith('http') ? card.google_maps : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.google_maps)}`)
+    : card.address
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.address)}`
+      : '#';
+
+  const translations = getCardTranslation(currentLang);
+  const isOriginalLang = currentLang === cardDefaultLang;
+
+  const getLabel = (customLabel: string | undefined, key: keyof ReturnType<typeof getCardTranslation>['defaultRowLabels']) => {
+    const defaultVal = translations.defaultRowLabels[key];
+    if (!isOriginalLang) return defaultVal;
+    if (!customLabel || customLabel.trim() === '') return defaultVal;
+    return customLabel;
+  };
+
+  // Resolve configured vs default quick action circular buttons
+  const rawAction1 = card.quick_action_1 !== undefined && card.quick_action_1 !== '' ? card.quick_action_1 : 'phone';
+  const rawAction2 = card.quick_action_2 !== undefined && card.quick_action_2 !== '' ? card.quick_action_2 : 'whatsapp';
+  const rawAction3 = card.quick_action_3 !== undefined && card.quick_action_3 !== '' ? card.quick_action_3 : 'address';
+
+  const quickActionKeys = [rawAction1, rawAction2, rawAction3].filter(
+    (k): k is string => Boolean(k) && k !== 'none'
+  );
+
+  const hasValueForAction = (k: string) => {
+    if (k === 'phone') return Boolean(card.phone);
+    if (k === 'landline') return Boolean(card.landline);
+    if (k === 'whatsapp') return Boolean(card.whatsapp);
+    if (k === 'address') return Boolean(card.address || card.google_maps);
+    if (k === 'email') return Boolean(card.email);
+    if (k === 'website') return Boolean(card.website);
+    if (k === 'instagram') return Boolean(card.instagram);
+    if (k === 'facebook') return Boolean(card.facebook);
+    if (k === 'tiktok') return Boolean(card.tiktok);
+    if (k === 'snapchat') return Boolean(card.snapchat);
+    if (k === 'linkedin') return Boolean(card.linkedin);
+    if (k === 'twitter' || k === 'x') return Boolean(card.twitter);
+    if (k === 'youtube') return Boolean(card.youtube);
+    if (k === 'delivery') return Boolean(card.delivery_enabled && card.delivery_number);
+    if (k === 'wifi_password') return Boolean(card.wifi_password);
+    return Boolean(card[k as keyof typeof card]);
+  };
+
+  const activeHeaderCTAKeys = quickActionKeys.filter(k => hasValueForAction(k));
+
+  const renderQuickActionButton = (actionKey: string, index: number) => {
+    let href = '#';
+    let onClick: (() => void) | undefined = undefined;
+    let target: string | undefined = undefined;
+    let rel: string | undefined = undefined;
+
+    if (actionKey === 'phone') {
+      if (!card.phone) return null;
+      href = `tel:${card.phone}`;
+    } else if (actionKey === 'landline') {
+      if (!card.landline) return null;
+      href = `tel:${card.landline}`;
+    } else if (actionKey === 'whatsapp') {
+      if (!card.whatsapp) return null;
+      href = `https://wa.me/${card.whatsapp.replace(/\+/g, '')}`;
+      target = "_blank";
+      rel = "noopener noreferrer";
+    } else if (actionKey === 'address') {
+      if (!card.address && !card.google_maps) return null;
+      href = mapUrl;
+      target = "_blank";
+      rel = "noopener noreferrer";
+    } else if (actionKey === 'email') {
+      if (!card.email) return null;
+      href = `mailto:${card.email}`;
+    } else if (actionKey === 'website') {
+      if (!card.website) return null;
+      href = card.website.startsWith('http') ? card.website : `https://${card.website}`;
+      target = "_blank";
+      rel = "noopener noreferrer";
+    } else if (actionKey === 'instagram') {
+      if (!card.instagram) return null;
+      href = card.instagram.startsWith('http') ? card.instagram : `https://instagram.com/${card.instagram.replace('@', '')}`;
+      target = "_blank";
+      rel = "noopener noreferrer";
+    } else if (actionKey === 'facebook') {
+      if (!card.facebook) return null;
+      href = card.facebook.startsWith('http') ? card.facebook : `https://facebook.com/${card.facebook}`;
+      target = "_blank";
+      rel = "noopener noreferrer";
+    } else if (actionKey === 'tiktok') {
+      if (!card.tiktok) return null;
+      href = card.tiktok.startsWith('http') ? card.tiktok : `https://tiktok.com/@${card.tiktok.replace('@', '')}`;
+      target = "_blank";
+      rel = "noopener noreferrer";
+    } else if (actionKey === 'snapchat') {
+      if (!card.snapchat) return null;
+      href = card.snapchat.startsWith('http') ? card.snapchat : `https://snapchat.com/add/${card.snapchat.replace('@', '')}`;
+      target = "_blank";
+      rel = "noopener noreferrer";
+    } else if (actionKey === 'linkedin') {
+      if (!card.linkedin) return null;
+      href = card.linkedin.startsWith('http') ? card.linkedin : `https://linkedin.com/in/${card.linkedin}`;
+      target = "_blank";
+      rel = "noopener noreferrer";
+    } else if (actionKey === 'twitter' || actionKey === 'x') {
+      if (!card.twitter) return null;
+      href = card.twitter.startsWith('http') ? card.twitter : `https://x.com/${card.twitter.replace('@', '')}`;
+      target = "_blank";
+      rel = "noopener noreferrer";
+    } else if (actionKey === 'youtube') {
+      if (!card.youtube) return null;
+      href = card.youtube.startsWith('http') ? card.youtube : `https://youtube.com/${card.youtube}`;
+      target = "_blank";
+      rel = "noopener noreferrer";
+    } else if (actionKey === 'delivery' || actionKey === 'delivery_number') {
+      if (!card.delivery_enabled || !card.delivery_number) return null;
+      href = '#';
+      onClick = () => setShowDeliveryModal(true);
+    } else if (actionKey === 'wifi_password') {
+      if (!card.wifi_password) return null;
+      href = '#';
+      onClick = () => {
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          navigator.clipboard.writeText(card.wifi_password || '');
+          setCopiedWifi(true);
+          setTimeout(() => setCopiedWifi(false), 2000);
+        }
+      };
+    } else {
+      href = getActionHref(actionKey, (card[actionKey as keyof typeof card] as string) || '');
+      target = "_blank";
+      rel = "noopener noreferrer";
+    }
+
+    if (onClick) {
+      return (
+        <button
+          key={`quick-${actionKey}-${index}`}
+          type="button"
+          onClick={onClick}
+          className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-white text-slate-900 flex items-center justify-center shadow-lg shadow-black/20 hover:scale-110 active:scale-95 transition-all cursor-pointer touch-manipulation"
+          title={actionKey.toUpperCase()}
+        >
+          {getActionIcon(actionKey, "w-5 h-5 sm:w-6 sm:h-6")}
+        </button>
+      );
+    }
+
+    return (
+      <a
+        key={`quick-${actionKey}-${index}`}
+        href={href}
+        target={target}
+        rel={rel}
+        className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-white text-slate-900 flex items-center justify-center shadow-lg shadow-black/20 hover:scale-110 active:scale-95 transition-all cursor-pointer touch-manipulation"
+        title={actionKey.toUpperCase()}
+      >
+        {getActionIcon(actionKey, "w-5 h-5 sm:w-6 sm:h-6")}
+      </a>
+    );
+  };
+
+  return (
+    <div className="w-full min-h-screen bg-slate-100/80 pb-20 pt-[env(safe-area-inset-top)] overflow-x-hidden font-sans">
+      {/* Cover Photo Header - ONLY FOR DESIGN 3 */}
+      {card.layout === 'design3' && (
+        <div className="relative w-full h-52 sm:h-60 bg-slate-950 overflow-hidden">
+          {card.cover_photo_url ? (
+            <>
+              {!coverLoaded && (
+                <div className="absolute inset-0 bg-slate-900 animate-pulse flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                </div>
+              )}
+              <img
+                src={card.cover_photo_url}
+                alt={card.name}
+                onLoad={() => setCoverLoaded(true)}
+                className={`w-full h-full object-cover transition-opacity duration-500 ${coverLoaded ? 'opacity-100' : 'opacity-0'}`}
+              />
+            </>
+          ) : (
+            <div 
+              className="w-full h-full flex items-center justify-center relative"
+              style={{
+                background: `radial-gradient(circle at 50% 40%, rgba(255,255,255,0.18) 0%, transparent 70%), ${themeColor}`
+              }}
+            >
+              <span className="font-serif text-white/25 text-3xl sm:text-4xl font-extrabold tracking-widest uppercase select-none px-6 text-center">
+                {card.name}
+              </span>
+            </div>
+          )}
+
+          {/* Rich gradient overlay at the bottom of cover photo */}
+          <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-transparent pointer-events-none" />
+        </div>
+      )}
+
+      {/* Signature Main Theme Header Block (Deep Gradient & Elevated Profile) */}
+      <div 
+        className={`relative pb-7 px-5 text-center text-white shadow-xl rounded-b-3xl ${
+          card.layout === 'design3' ? 'pt-0' : 'pt-8 sm:pt-10'
+        }`}
+        style={{
+          background: `linear-gradient(180deg, ${themeColor} 0%, rgba(0,0,0,0.28) 100%), ${themeColor}`,
+          boxShadow: '0 12px 32px -8px rgba(0,0,0,0.25)'
+        }}
+      >
+        {/* Signature Avatar Ring */}
+        <div className={`relative mb-3.5 inline-block z-10 ${
+          card.layout === 'design3' ? '-mt-16 sm:-mt-18' : 'mt-0'
+        }`}>
+          <div 
+            className="w-28 h-28 sm:w-32 sm:h-32 p-0 bg-white shadow-2xl shadow-black/30 border-0 overflow-hidden mx-auto flex items-center justify-center transition-transform hover:scale-105 duration-300"
+            style={{ borderRadius: (card.avatar_border_radius ?? 50) >= 45 ? '50%' : '24%' }}
+          >
+            {card.logo ? (
+              <img
+                src={card.logo}
+                alt={card.name}
+                className="w-full h-full object-cover p-0"
+                style={{ borderRadius: (card.avatar_border_radius ?? 50) >= 45 ? '50%' : '24%' }}
+              />
+            ) : (
+              <span className="font-serif font-extrabold text-4xl sm:text-5xl text-slate-800 select-none">
+                {card.name ? card.name.charAt(0).toUpperCase() : 'B'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Business Title in Fraunces */}
+        <h1 className="font-serif text-2xl sm:text-3xl font-extrabold tracking-tight text-white uppercase drop-shadow-md break-words [overflow-wrap:anywhere] max-w-md mx-auto leading-tight">
+          {card.name}
+        </h1>
+
+        {/* Tagline in IBM Plex Mono */}
+        {card.tagline && (
+          <p className="mt-2 text-xs font-mono font-bold tracking-[0.2em] text-white/90 uppercase max-w-sm mx-auto break-words [overflow-wrap:anywhere] leading-relaxed">
+            {card.tagline}
+          </p>
+        )}
+
+        {/* Quick Action Circular Buttons (Configurable up to 3) */}
+        {quickActionKeys.length > 0 && (
+          <div className="flex items-center justify-center gap-4 mt-6">
+            {quickActionKeys.map((key, idx) => renderQuickActionButton(key, idx))}
+          </div>
+        )}
+      </div>
+
+      {/* Cards Section */}
+      <div className="max-w-md mx-auto px-4 mt-6 space-y-4">
+        {/* Contact Details Card */}
+        <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+          <div className="flex items-center justify-between gap-2 mb-5 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <PhoneCall className="w-4 h-4 shrink-0" style={{ color: themeColor }} />
+              <span className="font-mono text-xs font-extrabold tracking-[0.2em] text-slate-500 uppercase">
+                {translations.sectionContactDetails}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveClick}
+              className="px-3.5 py-2 rounded-full font-mono text-[11px] font-bold text-white flex items-center gap-1.5 shadow-sm hover:brightness-105 active:scale-95 transition-all cursor-pointer min-h-[38px] touch-manipulation shrink-0"
+              style={{ backgroundColor: themeColor }}
+            >
+              <span>{translations.saveContactUpper}</span>
+              <UserPlus className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="space-y-3.5">
+            {/* Mobile */}
+            {card.phone && (
+              <div className="flex items-center gap-3.5 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-slate-200/60 flex items-center justify-center shrink-0 text-slate-600">
+                  <Phone className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block font-mono text-[10px] font-extrabold tracking-widest text-slate-400 uppercase">
+                    {getLabel(card.mobile_label, 'phone').toUpperCase()}
+                  </span>
+                  <a
+                    href={`tel:${card.phone}`}
+                    className="block font-mono font-bold text-sm text-slate-800 hover:text-indigo-600 truncate mt-0.5"
+                  >
+                    {card.phone}
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Landline */}
+            {card.landline && (
+              <div className="flex items-center gap-3.5 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-slate-200/60 flex items-center justify-center shrink-0 text-slate-600">
+                  <PhoneCall className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block font-mono text-[10px] font-extrabold tracking-widest text-slate-400 uppercase">
+                    {getLabel(card.landline_label, 'landline').toUpperCase()}
+                  </span>
+                  <a
+                    href={`tel:${card.landline}`}
+                    className="block font-mono font-bold text-sm text-slate-800 hover:text-indigo-600 truncate mt-0.5"
+                  >
+                    {card.landline}
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Email */}
+            {card.email && (
+              <div className="flex items-center gap-3.5 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-slate-200/60 flex items-center justify-center shrink-0 text-slate-600">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block font-mono text-[10px] font-extrabold tracking-widest text-slate-400 uppercase">
+                    {getLabel(card.email_label, 'email').toUpperCase()}
+                  </span>
+                  <a
+                    href={`mailto:${card.email}`}
+                    className="block font-mono font-bold text-sm text-slate-800 hover:text-indigo-600 truncate mt-0.5 break-all"
+                  >
+                    {card.email}
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Location Card */}
+        {(card.address || card.google_maps) && (
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+            <div className="flex items-center gap-2 mb-3">
+              <MapPin className="w-4 h-4 shrink-0" style={{ color: themeColor }} />
+              <span className="font-mono text-xs font-extrabold tracking-[0.2em] text-slate-500 uppercase">
+                {translations.sectionLocation}
+              </span>
+            </div>
+            {card.address && (
+              <p className="font-sans text-xs sm:text-sm text-slate-700 font-medium leading-relaxed mb-4 whitespace-pre-line break-words">
+                {card.address}
+              </p>
+            )}
+            <a
+              href={mapUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-mono text-xs font-bold border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-all cursor-pointer min-h-[42px] touch-manipulation shadow-2xs"
+            >
+              {translations.showOnMap}
+            </a>
+          </div>
+        )}
+
+        {/* Delivery / WiFi Card */}
+        {((card.delivery_enabled && card.delivery_number) || card.wifi_password) && (
+          <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80 space-y-2.5">
+            {card.delivery_enabled && card.delivery_number && (
+              <button
+                type="button"
+                onClick={() => setShowDeliveryModal(true)}
+                className="w-full py-3.5 px-4 rounded-xl font-mono font-bold text-xs text-white flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-sm hover:brightness-105 min-h-[44px]"
+                style={{ backgroundColor: themeColor }}
+              >
+                <MotorcycleDeliveryIcon className="w-4 h-4" />
+                <span className="tracking-wider uppercase">{getLabel(card.delivery_label, 'delivery')}</span>
+              </button>
+            )}
+
+            {card.wifi_password && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                    navigator.clipboard.writeText(card.wifi_password || '');
+                    setCopiedWifi(true);
+                    setTimeout(() => setCopiedWifi(false), 2000);
+                  }
+                }}
+                className="w-full py-3 px-4 rounded-xl font-mono font-bold text-xs border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 flex items-center justify-between transition-all cursor-pointer min-h-[44px]"
+              >
+                <span className="flex items-center gap-2">
+                  <Wifi className="w-4 h-4 text-indigo-600" />
+                  <span className="tracking-wider uppercase">{getLabel(card.wifi_password_label, 'wifi')}</span>
+                </span>
+                <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-1 rounded border border-slate-200 font-bold uppercase tracking-wider">
+                  {copiedWifi ? translations.copied : (translations.smallLabels.default || 'Copy')}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Web Links Card */}
+        {card.website && (
+          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+            <div className="flex items-center gap-2 mb-3">
+              <Globe className="w-4 h-4 shrink-0" style={{ color: themeColor }} />
+              <span className="font-mono text-xs font-extrabold tracking-[0.2em] text-slate-500 uppercase">
+                {translations.webLinks}
+              </span>
+            </div>
+            <a
+              href={card.website.startsWith('http') ? card.website : `https://${card.website}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block font-mono text-xs font-bold hover:underline break-all uppercase tracking-wider"
+              style={{ color: themeColor }}
+            >
+              {getLabel(card.website_label, 'website')}
+            </a>
+          </div>
+        )}
+
+        {/* Social Links ("Connect With Us" Circular Badge Grid) */}
+        {(() => {
+          const socialKeys = ['instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube']
+            .filter(k => {
+              if (!Boolean(card[k as keyof typeof card])) return false;
+              if (
+                activeHeaderCTAKeys.includes(k) ||
+                (k === 'twitter' && activeHeaderCTAKeys.includes('x')) ||
+                (k === 'x' && activeHeaderCTAKeys.includes('twitter'))
+              ) {
+                return false;
+              }
+              return true;
+            });
+
+          if (socialKeys.length === 0) return null;
+
+          return (
+            <div className="mt-8 pt-6 border-t border-slate-200/60">
+              <p className="font-mono text-xs sm:text-[13px] font-extrabold tracking-[0.2em] text-slate-500 uppercase mb-6 text-center select-none">
+                {translations.connectWithUs}
+              </p>
+
+              <div className="grid grid-cols-3 gap-y-7 gap-x-2 justify-items-center max-w-[320px] mx-auto">
+                {socialKeys.map((actionKey) => {
+                  const rawVal = card[actionKey as keyof typeof card] as string;
+                  const href = getActionHref(actionKey, rawVal);
+                  const label = translations.smallLabels[actionKey] || actionKey.toUpperCase();
+
+                  return (
+                    <a
+                      key={actionKey}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex flex-col items-center w-20 cursor-pointer"
+                    >
+                      <div
+                        className="w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-md"
+                        style={{
+                          backgroundColor: `${themeColor}08`,
+                          borderColor: `${themeColor}18`,
+                          color: themeColor
+                        }}
+                      >
+                        {getActionIcon(actionKey, 'w-6 h-6')}
+                      </div>
+                      <span className="text-[10px] sm:text-xs font-bold font-mono text-slate-500 tracking-wide mt-2.5 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
+                        {label}
+                      </span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* 5 Golden Stars Rate Us Section (Last section in the page) */}
+        {card.rate_us_enabled !== false && (
+          <div className="mt-8 pt-6 border-t border-slate-200/60 flex flex-col items-center text-center">
+            <a
+              href={card.review_url?.trim() || card.google_maps?.trim() || (card.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.address)}` : '') || 'https://maps.google.com'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group w-full max-w-[280px] py-4 px-5 bg-transparent flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
+            >
+              <span className="text-xs font-bold font-mono tracking-widest text-slate-500 uppercase mb-1">
+                {translations.reviewUs}
+              </span>
+              {/* 5 Big Golden Stars */}
+              <div className="flex items-center gap-1.5 text-amber-400">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-7 h-7 sm:w-8 sm:h-8 fill-amber-400 text-amber-400 transition-transform group-hover:scale-110 drop-shadow-xs" />
+                ))}
+              </div>
+              {/* Centered Google Logo on next line */}
+              <div className="flex items-center justify-center pt-0.5">
+                <GoogleLogo className="h-6 sm:h-7 w-auto transition-transform group-hover:scale-105" />
+              </div>
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function CardClient({ 
   slug, 
   initialCard,
@@ -84,6 +628,31 @@ export default function CardClient({
   const router = useRouter();
   const [internalCard, setInternalCard] = useState<BusinessCard | null>(initialCard || null);
   const card = (previewCard || internalCard) as BusinessCard | null;
+
+  const cardDefaultLang: BusinessLanguage = (card?.language as BusinessLanguage) || 'en';
+  const [currentLang, setCurrentLang] = useState<BusinessLanguage>(cardDefaultLang);
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (card?.language) {
+      setCurrentLang(card.language as BusinessLanguage);
+    }
+  }, [card?.language]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(e.target as Node)) {
+        setLangDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const isOriginalLang = currentLang === cardDefaultLang;
+  const translations = getCardTranslation(currentLang);
+
   const [isFetching, setIsFetching] = useState(!previewCard && !initialCard);
   const loading = !previewCard && isFetching && !internalCard;
   const [copied, setCopied] = useState(false);
@@ -135,8 +704,9 @@ export default function CardClient({
   }, []);
 
   const handleSaveClick = () => {
-    setShortcutMode('choice');
-    setIsSaveModalOpen(true);
+    if (card) {
+      downloadVCard(card);
+    }
   };
 
   const handleShare = async () => {
@@ -237,7 +807,7 @@ export default function CardClient({
       );
       case 'snapchat': return (
         <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12.001 2c-3.132 0-5.32 2.215-5.32 4.961 0 .864.225 1.637.587 2.292-.533.153-1.258.411-1.802.946-.431.424-.51.983-.238 1.488.225.418.729.68 1.253.868-.041.341-.12.879-.12 1.272 0 1.95 1.547 3.518 4.298 3.518.358 0 .749-.03 1.15-.09.313.364.787.607 1.192.607.404 0 .878-.243 1.191-.607.402.06.793.09 1.152.09 2.75 0 4.297-1.568 4.297-3.518 0-.393-.079-.931-.12-1.272.524-.188 1.028-.45 1.253-.868.272-.505.193-1.064-.238-1.488-.544-.535-1.269-.793-1.802-.946.362-.655.587-1.428.587-2.292C17.321 4.215 15.133 2 12.001 2z"/>
+          <path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301.165-.088.344-.104.464-.104.182 0 .359.029.509.09.45.149.734.479.734.838.015.449-.39.839-1.213 1.168-.089.029-.209.075-.344.119-.45.135-1.139.36-1.333.81-.09.224-.061.524.12.868l.015.015c.06.136 1.526 3.475 4.791 4.014.255.044.435.27.42.509 0 .075-.015.149-.045.225-.24.569-1.273.988-3.146 1.271-.059.091-.12.375-.164.57-.029.179-.074.36-.134.553-.076.271-.27.405-.555.405h-.03c-.135 0-.313-.031-.538-.074-.36-.075-.765-.135-1.273-.135-.3 0-.599.015-.913.074-.6.104-1.123.464-1.723.884-.853.599-1.826 1.288-3.294 1.288-.06 0-.119-.015-.18-.015h-.149c-1.468 0-2.427-.675-3.279-1.288-.599-.42-1.107-.779-1.707-.884-.314-.045-.629-.074-.928-.074-.54 0-.958.089-1.272.149-.211.043-.391.074-.54.074-.374 0-.523-.224-.583-.42-.061-.192-.09-.389-.135-.567-.046-.181-.105-.494-.166-.57-1.918-.222-2.95-.642-3.189-1.226-.031-.063-.052-.15-.055-.225-.015-.243.165-.465.42-.509 3.264-.54 4.73-3.879 4.791-4.02l.016-.029c.18-.345.224-.645.119-.869-.195-.434-.884-.658-1.332-.809-.121-.029-.24-.074-.346-.119-1.107-.435-1.257-.93-1.197-1.273.09-.479.674-.793 1.168-.793.146 0 .27.029.383.074.42.194.789.3 1.104.3.234 0 .384-.06.465-.105l-.046-.569c-.098-1.626-.225-3.651.307-4.837C7.392 1.077 10.739.807 11.727.807l.419-.015h.06z"/>
         </svg>
       );
       case 'linkedin': return (
@@ -264,9 +834,15 @@ export default function CardClient({
   const getLocalizedRowLabel = (customLabel: string | undefined, key: keyof ReturnType<typeof getCardTranslation>['defaultRowLabels'], lang: BusinessLanguage = 'en') => {
     const t = getCardTranslation(lang);
     const defaultVal = t.defaultRowLabels[key];
+
+    // If visitor translates to a language different from the card's default language set by admin,
+    // do not preserve customized text; use default translated text for that label.
+    if (lang !== cardDefaultLang) {
+      return defaultVal;
+    }
+
     if (!customLabel || customLabel.trim() === '') return defaultVal;
-    
-    // Standard default strings across languages that should auto-translate when language is changed
+
     const isStandardDefault = [
       'Our Menu', 'Our Menu (PDF)', 'Notre Menu', 'Notre Carte / Menu', 'القائمة',
       'WiFi Password', 'Mot de passe Wi-Fi', 'كلمة سر الواي فاي',
@@ -288,7 +864,7 @@ export default function CardClient({
   };
 
   const getBusinessRows = (c: BusinessCard) => {
-    const cardLang = c.language || 'en';
+    const cardLang = currentLang;
     const t = getCardTranslation(cardLang);
 
     const rows: {
@@ -595,7 +1171,9 @@ export default function CardClient({
   }
 
   const primaryHref = getActionHref(card.primary_action, card[card.primary_action] as string || '');
-  const primaryLabel = card.primary_action_label || getCardTranslation(card.language || 'en').primaryActions[card.primary_action as PrimaryActionType];
+  const primaryLabel = (isOriginalLang && card.primary_action_label)
+    ? card.primary_action_label
+    : translations.primaryActions[card.primary_action as PrimaryActionType];
 
   const themeColor = card.themeColor || '#1B2A4A';
   const layout = card.layout || 'design1';
@@ -611,9 +1189,75 @@ export default function CardClient({
           animate: { opacity: 1, y: 0, scale: 1 },
           transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] }
         } : {})}
+        dir={currentLang === 'ar' ? 'rtl' : 'ltr'}
         className={isPreview ? "w-full bg-white rounded-[28px] overflow-hidden relative border border-slate-100 shadow-xs pb-6 text-left" : "w-full max-w-[440px] sm:max-w-[460px] bg-white sm:rounded-[36px] min-h-screen sm:min-h-0 sm:shadow-2xl overflow-hidden relative border-x sm:border border-slate-200/60 pb-6"}
       >
         
+        {/* Public Language Switcher Toggle (Compact Dropdown) */}
+        {(() => {
+          const activeLangObj = LANGUAGES.find((l) => l.code === currentLang) || LANGUAGES[0];
+          return (
+            <div 
+              ref={langDropdownRef}
+              className="absolute top-3.5 left-3.5 sm:top-4 sm:left-4 z-40"
+              dir="ltr"
+            >
+              <button
+                type="button"
+                onClick={() => setLangDropdownOpen((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full shadow-md backdrop-blur-md border transition-all cursor-pointer ${
+                  layout === 'business'
+                    ? 'bg-white/95 text-slate-800 border-slate-200 hover:bg-slate-50'
+                    : 'bg-black/40 text-white border-white/20 hover:bg-black/50'
+                }`}
+                title={activeLangObj.label}
+                aria-label="Change Language"
+              >
+                <span className="text-base sm:text-lg leading-none">{activeLangObj.flag}</span>
+                <span className="text-xs font-bold uppercase font-mono tracking-wider">{activeLangObj.code}</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${langDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence>
+                {langDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 mt-1.5 w-36 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200/80 p-1.5 z-50 text-slate-800 font-sans"
+                  >
+                    {LANGUAGES.map((l) => {
+                      const isActive = currentLang === l.code;
+                      return (
+                        <button
+                          key={l.code}
+                          type="button"
+                          onClick={() => {
+                            setCurrentLang(l.code);
+                            setLangDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                            isActive
+                              ? 'bg-indigo-50 text-indigo-700 font-bold'
+                              : 'hover:bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="text-base leading-none">{l.flag}</span>
+                            <span>{l.label}</span>
+                          </span>
+                          {isActive && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })()}
+
         {/* Dynamic Island Animation for NFC Tap */}
         <AnimatePresence>
           {islandState !== 'hidden' && (
@@ -625,29 +1269,30 @@ export default function CardClient({
               transition={{ duration: 0.3 }}
             >
               <motion.div 
-                className="bg-black rounded-full overflow-hidden flex items-center justify-center shadow-2xl"
+                className="bg-slate-950 rounded-full overflow-hidden flex items-center justify-center shadow-2xl border border-white/10 backdrop-blur-md"
+                style={{ willChange: 'transform, width' }}
                 initial={{ width: 0, height: 0, opacity: 0 }}
                 animate={{
-                  width: islandState === 'idle' ? 0 : islandState === 'dot' ? 24 : islandState === 'expanded' ? 220 : islandState === 'collapsed' ? 120 : 0,
-                  height: islandState === 'idle' ? 0 : islandState === 'dot' ? 24 : 44,
+                  width: islandState === 'idle' ? 0 : islandState === 'dot' ? 24 : islandState === 'expanded' ? 180 : islandState === 'collapsed' ? 100 : 0,
+                  height: islandState === 'idle' ? 0 : islandState === 'dot' ? 24 : 42,
                   opacity: islandState === 'idle' ? 0 : 1
                 }}
-                transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                transition={{ type: "spring", stiffness: 400, damping: 28 }}
               >
                 <AnimatePresence mode="wait">
                   {islandState === 'expanded' && (
                     <motion.div 
                       key="expanded"
-                      initial={{ opacity: 0, y: 10 }}
+                      initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      transition={{ delay: 0.1, duration: 0.2 }}
-                      className="flex items-center gap-3 px-4 w-full h-full text-white"
+                      exit={{ opacity: 0, scale: 0.85 }}
+                      transition={{ delay: 0.08, duration: 0.18 }}
+                      className="flex items-center justify-center gap-2.5 px-3.5 w-full h-full text-white"
                     >
-                      <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                        <Nfc className="w-3.5 h-3.5" />
+                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                        <Nfc className="w-3 h-3" />
                       </div>
-                      <span className="text-xs font-medium tracking-wide whitespace-nowrap">NFC Tag Read</span>
+                      <span className="text-xs font-semibold tracking-wider font-mono text-slate-100 whitespace-nowrap">VCards.space</span>
                     </motion.div>
                   )}
                   {islandState === 'collapsed' && (
@@ -681,8 +1326,8 @@ export default function CardClient({
               ? 'bg-slate-100/90 hover:bg-slate-200/90 text-slate-700 border border-slate-200/80'
               : 'bg-black/20 hover:bg-black/30 backdrop-blur-md text-white border border-white/20'
           }`}
-          title={getCardTranslation(card.language || 'en').shareCard || 'Share Card'}
-          aria-label={getCardTranslation(card.language || 'en').shareCard || 'Share Card'}
+          title={translations.shareCard || 'Share Card'}
+          aria-label={translations.shareCard || 'Share Card'}
         >
           {copied ? (
             <Check className={`w-4 h-4 shrink-0 ${layout === 'business' ? 'text-emerald-600' : 'text-emerald-300'}`} />
@@ -858,16 +1503,32 @@ export default function CardClient({
               </motion.div>
             </div>
           </>
+        ) : layout === 'design3' ? (
+          <Design3CardView
+            card={card}
+            themeColor={themeColor}
+            handleSaveClick={handleSaveClick}
+            setShowDeliveryModal={setShowDeliveryModal}
+            setCopiedWifi={setCopiedWifi}
+            copiedWifi={copiedWifi}
+            getActionIcon={getActionIcon}
+            getActionHref={getActionHref}
+            currentLang={currentLang}
+            cardDefaultLang={cardDefaultLang}
+          />
         ) : (
           <>
+            {/* Colored Banner Top */}
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="h-32 sm:h-36 w-full relative transition-all duration-300" 
-              style={{ backgroundColor: themeColor }}
+              className="h-32 sm:h-36 w-full relative transition-all duration-300 shadow-md" 
+              style={{ 
+                background: `linear-gradient(180deg, ${themeColor} 0%, rgba(0,0,0,0.28) 100%), ${themeColor}` 
+              }}
             >
-              <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.4),_transparent_60%)]" />
+              <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.4),_transparent_70%)]" />
               
               {layout !== 'design2' && (
                 <div 
@@ -949,26 +1610,34 @@ export default function CardClient({
               className="pt-6 pb-10 px-8 text-center flex flex-col min-h-[400px]"
             >
               
-              <h1 className="font-serif text-3xl font-extrabold text-slate-900 tracking-tight leading-tight break-words [overflow-wrap:anywhere]">
+              <h1 className="font-serif text-3xl font-extrabold text-slate-900 tracking-tight leading-tight uppercase break-words [overflow-wrap:anywhere]">
                 {card.name}
               </h1>
               
               {card.tagline && (
-                <p className="mt-2 text-[10px] font-mono font-bold tracking-[0.2em] text-slate-400 uppercase break-words [overflow-wrap:anywhere]">
+                <p className="mt-2 text-xs font-mono font-bold tracking-[0.2em] text-slate-400 uppercase break-words [overflow-wrap:anywhere] leading-relaxed">
                   {card.tagline}
                 </p>
               )}
 
-              <div className="flex justify-center items-center gap-3 my-6 select-none" aria-hidden="true">
-                <div className="h-[1px] w-8 bg-slate-100" />
+              <div className="flex justify-center items-center gap-3 my-5 select-none" aria-hidden="true">
+                <div className="h-[1px] w-8 bg-slate-200/80" />
                 <span className="text-[10px] font-mono tracking-widest text-slate-300">✦</span>
-                <div className="h-[1px] w-8 bg-slate-100" />
+                <div className="h-[1px] w-8 bg-slate-200/80" />
               </div>
 
               {card.address && (
-                <p className="text-sm text-slate-500 mb-8 px-4 leading-relaxed max-w-[280px] mx-auto whitespace-pre-line break-words [overflow-wrap:anywhere]">
-                  {card.address}
-                </p>
+                card.address_type === 'text' ? (
+                  <div className="mb-7 px-4 py-3 rounded-2xl bg-slate-50/80 border border-slate-100 max-w-[320px] mx-auto text-center">
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans italic whitespace-pre-line break-words [overflow-wrap:anywhere]">
+                      "{card.address}"
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs sm:text-sm text-slate-500 mb-7 px-4 leading-relaxed max-w-[300px] mx-auto whitespace-pre-line break-words [overflow-wrap:anywhere]">
+                    {card.address}
+                  </p>
+                )
               )}
 
               <div className="mt-auto space-y-3">
@@ -999,13 +1668,13 @@ export default function CardClient({
                   onClick={handleSaveClick}
                 >
                   <UserPlus className="w-4 h-4 shrink-0" />
-                  <span className="tracking-wide text-xs sm:text-sm truncate">{getCardTranslation(card.language || 'en').saveContact}</span>
+                  <span className="tracking-wide text-xs sm:text-sm truncate">{translations.saveContact}</span>
                 </button>
               </div>
 
               <div className="mt-10 border-t border-slate-100 pt-8">
                 <p className="text-sm sm:text-[15px] font-extrabold font-mono tracking-[0.2em] text-slate-600 uppercase mb-8 select-none text-center">
-                  {getCardTranslation(card.language || 'en').connectWithUs}
+                  {translations.connectWithUs}
                 </p>
                 
                 <div className="grid grid-cols-3 gap-y-7 gap-x-2 justify-items-center max-w-[320px] mx-auto">
@@ -1019,7 +1688,6 @@ export default function CardClient({
                       });
 
                     if (secondaryActions.length > 0) {
-                      const translations = getCardTranslation(card.language || 'en');
                       return secondaryActions.map((actionKey) => {
                         if (actionKey === 'delivery_number') {
                           return (
@@ -1125,7 +1793,7 @@ export default function CardClient({
                       className="group w-full max-w-[280px] py-4 px-5 bg-transparent flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
                     >
                       <span className="text-xs font-bold font-mono tracking-widest text-slate-500 uppercase mb-1">
-                        {getCardTranslation(card.language || 'en').reviewUs}
+                        {translations.reviewUs}
                       </span>
                       {/* 5 Big Golden Stars */}
                       <div className="flex items-center gap-1.5 text-amber-400">
@@ -1197,13 +1865,13 @@ export default function CardClient({
                   <div>
                     <h3 className="font-serif font-bold text-lg text-slate-900 tracking-tight">
                       {shortcutMode === 'choice' 
-                        ? getCardTranslation(card?.language || 'en').saveModal.title 
-                        : getCardTranslation(card?.language || 'en').saveModal.addShortcutTitle}
+                        ? translations.saveModal.title 
+                        : translations.saveModal.addShortcutTitle}
                     </h3>
                     <p className="text-xs text-slate-500 font-sans">
                       {shortcutMode === 'choice' 
-                        ? getCardTranslation(card?.language || 'en').saveModal.subtitle 
-                        : getCardTranslation(card?.language || 'en').saveModal.addShortcutSubtitle}
+                        ? translations.saveModal.subtitle 
+                        : translations.saveModal.addShortcutSubtitle}
                     </p>
                   </div>
                 </div>
@@ -1238,10 +1906,10 @@ export default function CardClient({
                       </div>
                       <div>
                         <p className="font-bold text-sm text-slate-900 group-hover:text-slate-900">
-                          {getCardTranslation(card?.language || 'en').saveContactOption}
+                          {translations.saveContactOption}
                         </p>
                         <p className="text-xs text-slate-500 mt-0.5 leading-snug">
-                          {getCardTranslation(card?.language || 'en').saveContactDesc}
+                          {translations.saveContactDesc}
                         </p>
                       </div>
                     </div>
@@ -1280,10 +1948,10 @@ export default function CardClient({
                       </div>
                       <div>
                         <p className="font-bold text-sm text-slate-900">
-                          {getCardTranslation(card?.language || 'en').addShortcutOption}
+                          {translations.addShortcutOption}
                         </p>
                         <p className="text-xs text-slate-500 mt-0.5 leading-snug">
-                          {getCardTranslation(card?.language || 'en').addShortcutDesc}
+                          {translations.addShortcutDesc}
                         </p>
                       </div>
                     </button>
@@ -1298,7 +1966,7 @@ export default function CardClient({
                           setShortcutMode('instructions');
                         }}
                         className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors shrink-0 cursor-pointer ml-1"
-                        title={getCardTranslation(card?.language || 'en').saveModal.viewManualGuide}
+                        title={translations.saveModal.viewManualGuide}
                       >
                         <Info className="w-5 h-5 text-amber-500" />
                       </button>
@@ -1335,7 +2003,7 @@ export default function CardClient({
                   {/* Step-by-step Guides */}
                   {deviceType === 'ios' && (
                     <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-100 text-xs text-slate-700 leading-relaxed">
-                      {getCardTranslation(card?.language || 'en').saveModal.iosSteps.map((stepText, idx) => (
+                      {translations.saveModal.iosSteps.map((stepText, idx) => (
                         <div key={`ios-step-${idx}`} className="flex items-start gap-3">
                           <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">{idx + 1}</span>
                           <p>{stepText}</p>
@@ -1346,7 +2014,7 @@ export default function CardClient({
 
                   {deviceType === 'android' && (
                     <div className="space-y-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-100 text-xs text-slate-700 leading-relaxed">
-                      {getCardTranslation(card?.language || 'en').saveModal.androidSteps.map((stepText, idx) => (
+                      {translations.saveModal.androidSteps.map((stepText, idx) => (
                         <div key={`android-step-${idx}`} className="flex items-start gap-3">
                           <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">{idx + 1}</span>
                           <p>{stepText}</p>
@@ -1361,7 +2029,7 @@ export default function CardClient({
                     className="w-full py-3 px-4 rounded-xl font-bold text-xs text-white transition-all shadow-xs cursor-pointer mt-2"
                     style={{ backgroundColor: themeColor }}
                   >
-                    {getCardTranslation(card?.language || 'en').saveModal.gotIt}
+                    {translations.saveModal.gotIt}
                   </button>
                 </div>
               )}
@@ -1397,19 +2065,19 @@ export default function CardClient({
               </div>
 
               <h3 className="text-xl font-extrabold text-slate-900 mb-1">
-                {getLocalizedRowLabel(card.delivery_label, 'delivery', card.language || 'en')}
+                {getLocalizedRowLabel(card.delivery_label, 'delivery', currentLang)}
               </h3>
 
               <p className="text-sm text-slate-600 mb-4 px-1 leading-relaxed">
-                {getCardTranslation(card.language || 'en').deliveryModal.question(card.name)}
+                {translations.deliveryModal.question(card.name)}
               </p>
 
               <div className="w-full bg-slate-50 rounded-2xl p-3.5 mb-5 border border-slate-100 flex flex-col items-center gap-1">
                 <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-slate-400">
-                  {getCardTranslation(card.language || 'en').deliveryModal.contactNameLabel}
+                  {translations.deliveryModal.contactNameLabel}
                 </span>
                 <span className="font-bold text-sm text-slate-800 break-all">
-                  {card.name} / {getLocalizedRowLabel(card.delivery_label, 'delivery', card.language || 'en')}
+                  {card.name} / {getLocalizedRowLabel(card.delivery_label, 'delivery', currentLang)}
                 </span>
                 {card.delivery_number && (
                   <span className="text-xs font-mono font-semibold text-slate-500 mt-0.5">
@@ -1429,7 +2097,7 @@ export default function CardClient({
                   style={{ backgroundColor: themeColor }}
                 >
                   <Download className="w-4 h-4" />
-                  {getCardTranslation(card.language || 'en').deliveryModal.confirmDownload}
+                  {translations.deliveryModal.confirmDownload}
                 </button>
 
                 {card.delivery_number && (
@@ -1439,7 +2107,7 @@ export default function CardClient({
                     className="w-full py-3 px-5 rounded-2xl text-slate-700 font-bold text-xs bg-slate-100 hover:bg-slate-200 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
                   >
                     <Phone className="w-3.5 h-3.5" />
-                    {getCardTranslation(card.language || 'en').deliveryModal.callDirectly(card.delivery_number)}
+                    {translations.deliveryModal.callDirectly(card.delivery_number)}
                   </a>
                 )}
 
@@ -1448,7 +2116,7 @@ export default function CardClient({
                   onClick={() => setShowDeliveryModal(false)}
                   className="w-full py-2 px-5 rounded-2xl text-slate-500 font-semibold text-xs hover:text-slate-700 transition-colors cursor-pointer"
                 >
-                  {getCardTranslation(card.language || 'en').deliveryModal.cancel}
+                  {translations.deliveryModal.cancel}
                 </button>
               </div>
             </motion.div>

@@ -2,9 +2,9 @@ export type BusinessTheme = 'indigo' | 'rust' | 'sage';
 
 export type PrimaryActionType = 'phone' | 'landline' | 'whatsapp' | 'email' | 'address' | 'website' | 'instagram' | 'facebook' | 'tiktok' | 'snapchat' | 'linkedin' | 'twitter' | 'youtube';
 
-export type BusinessLanguage = 'en' | 'fr' | 'ar';
+export type BusinessLanguage = 'en' | 'fr' | 'ar' | 'de' | 'es' | 'nl';
 
-export type CardLayout = 'design1' | 'design2' | 'business';
+export type CardLayout = 'design1' | 'design2' | 'design3' | 'business';
 
 export interface BusinessCard {
   slug: string;
@@ -12,9 +12,10 @@ export interface BusinessCard {
   tagline: string;       // Business Tagline / Slogan
   themeColor: string;    // Custom Hex color code
   logo?: string;         // Base64 or URL logo data
+  cover_photo_url?: string; // Cover photo URL or Base64 data for Design 3
   theme?: BusinessTheme; // Deprecated, kept for backward compatibility
   language?: BusinessLanguage; // 'en' | 'fr' | 'ar'
-  layout?: CardLayout;   // 'design1' (Dynamic Sloped Header), 'design2' (Formal Flat Header), or 'business' (Link List Format)
+  layout?: CardLayout;   // 'design1' (Dynamic Sloped Header), 'design2' (Formal Flat Header), 'design3' (Cover Photo Banner), or 'business' (Link List Format)
   phone: string;
   landline?: string;     // Landline / Fixed Phone (Téléphone Fixe)
   whatsapp: string;
@@ -68,5 +69,10 @@ export interface BusinessCard {
 
   // Priority Button Ordering
   first_priority_field?: string; // Field ID selected to be the 1st button in the card's buttons list
+
+  // Design 3 Header Quick Action Buttons (up to 3 icons in top header)
+  quick_action_1?: string;
+  quick_action_2?: string;
+  quick_action_3?: string;
 }
 

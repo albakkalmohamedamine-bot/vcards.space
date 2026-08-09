@@ -74,11 +74,16 @@ export default function Home() {
       });
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (isMounted) {
         if (!session) {
-          setIsLoggedIn(false);
-          router.replace('/login');
+          const currentSession = await getSession();
+          if (!currentSession) {
+            setIsLoggedIn(false);
+            router.replace('/login');
+          } else {
+            setIsLoggedIn(true);
+          }
         } else {
           setIsLoggedIn(true);
         }

@@ -24,17 +24,24 @@ export default function LoginPage() {
   };
 
   useEffect(() => {
+    let isMounted = true;
     addLog('Step 1/4: Checking existing session on initial page load...');
     getSession().then((session) => {
+      if (!isMounted) return;
       if (session) {
-        addLog('Existing session found! Navigating to /...');
-        router.replace('/');
+        addLog('Existing session found! Navigating to /admin...');
+        router.replace('/admin');
       } else {
         addLog('No active session found. Ready for user credentials.');
       }
     }).catch((err) => {
+      if (!isMounted) return;
       addLog(`Error checking session: ${err.message || String(err)}`);
     });
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,33 +53,41 @@ export default function LoginPage() {
     addLog('Step 1/4: Authenticating credentials via signInWithEmail...');
     const result = await signInWithEmail(email, password);
 
-    if (result.success && (result.session || (await getSession()))) {
-      addLog('Step 2/4: Auth credentials valid! Verifying session cookies via getSession()...');
-      
-      let session = await getSession();
-      if (!session && result.session) {
-        addLog('Step 2/4 note: Using authenticated session from signInWithPassword.');
-        session = result.session;
+    if (result.success) {
+      addLog('Step 2/4: Credentials valid. Verifying session state in Supabase...');
+
+      // Robust check: Verify that getSession() returns an active session from Supabase state
+      let activeSession = await getSession();
+      let attempts = 0;
+      const maxAttempts = 5;
+
+      while (!activeSession && attempts < maxAttempts) {
+        attempts++;
+        addLog(`Step 2/4: Retrying session check (attempt ${attempts}/${maxAttempts})...`);
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        activeSession = await getSession();
       }
 
-      if (session) {
+      // Fallback to session returned from signInWithPassword if getSession loop hasn't settled
+      if (!activeSession && result.session) {
+        activeSession = result.session;
+      }
+
+      if (activeSession && activeSession.user) {
         setIsSuccess(true);
-        addLog(`Step 3/4: Session retrieved successfully (User ID: ${session.user.id.slice(0, 8)}...). Cookies active.`);
-        addLog('Step 4/4: Triggering router.push("/") redirect to Admin Dashboard...');
-        setTimeout(() => {
-          try {
-            addLog('Executing router.refresh() & router.push("/")...');
-            router.refresh();
-            router.push('/');
-          } catch (err) {
-            addLog(`Redirect ERROR: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }, 600);
+        addLog(`Step 3/4: Session confirmed active (User ID: ${activeSession.user.id.slice(0, 8)}...).`);
+        addLog('Step 4/4: Navigating to Admin Dashboard (/admin)...');
+
+        // Short pause to ensure UI success state renders and cookies settle
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        // Execute router.replace('/admin')
+        router.replace('/admin');
       } else {
         setIsLoading(false);
         setIsSuccess(false);
-        setError('Session verification failed. Please try again.');
-        addLog('Step 3/4 ERROR: getSession() returned NULL session after login! Redirect aborted to prevent bounce loop.');
+        setError('Session verification failed. Please try signing in again.');
+        addLog('ERROR: Could not verify active session in Supabase state.');
         setShakeKey((prev) => prev + 1);
       }
     } else {
@@ -121,7 +136,7 @@ export default function LoginPage() {
       {/* Top Header Bar */}
       <div className="w-full max-w-md mx-auto flex items-center justify-end pt-2">
         <span className="text-[10px] font-mono tracking-widest text-amber-900/60 uppercase font-bold bg-amber-900/5 px-3 py-1 rounded-full border border-amber-900/10">
-          Admin Protection
+          Admin Portal
         </span>
       </div>
 
