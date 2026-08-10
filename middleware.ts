@@ -2,47 +2,19 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { TEMPORARY_ADMIN_MODE } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({
-          request,
-        });
-        cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options)
-        );
-      },
-    },
-  });
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const tempAdminCookie = request.cookies.get('temp_admin_session')?.value === 'true';
-  const isAuthenticatedUser = user || tempAdminCookie || TEMPORARY_ADMIN_MODE;
-
   const { pathname } = request.nextUrl;
 
-  // Define public paths that do not require authentication
-  const isPublicPath =
-    pathname.startsWith('/card/') ||
-    pathname === '/login' ||
+  // If user visits /login, redirect directly to /admin
+  if (pathname === '/login') {
+    const adminUrl = new URL('/admin', request.url);
+    return NextResponse.redirect(adminUrl);
+  }
+
+  // Check if static asset or internal build file
+  const isStaticAsset =
     pathname.startsWith('/_next') ||
     pathname.endsWith('.svg') ||
     pathname.endsWith('.jpg') ||
@@ -52,19 +24,25 @@ export async function middleware(request: NextRequest) {
     pathname.endsWith('.json') ||
     pathname.endsWith('.webmanifest');
 
-  // If trying to access a protected route (such as / or /admin) without authentication, redirect to /login
-  if (!isPublicPath && !isAuthenticatedUser) {
-    const loginUrl = new URL('/login', request.url);
-    return NextResponse.redirect(loginUrl);
+  // Rate limit POST / API actions lightly, exempt standard GET page loads
+  if (!isStaticAsset && request.method !== 'GET') {
+    const clientIp =
+      request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      request.headers.get('x-real-ip') ||
+      '127.0.0.1';
+
+    const rateConfig = { limit: 60, windowMs: 60000 };
+    const rateResult = checkRateLimit(clientIp, rateConfig);
+
+    if (!rateResult.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again in a few seconds.' },
+        { status: 429 }
+      );
+    }
   }
 
-  // If user is already authenticated and visits /login, redirect to /admin
-  if (pathname === '/login' && isAuthenticatedUser) {
-    const adminUrl = new URL('/admin', request.url);
-    return NextResponse.redirect(adminUrl);
-  }
-
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {

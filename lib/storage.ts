@@ -318,14 +318,30 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
   
   let { error: dbError } = result;
 
-  if (dbError && (dbError.message?.includes('wifi_password') || dbError.message?.includes('quick_action') || dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
+  // If a column doesn't exist in the database, progressively strip ONLY the missing columns that failed
+  if (dbError && (dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
     const fallbackRow: any = { ...row };
-    delete fallbackRow.wifi_password;
-    delete fallbackRow.wifi_password_label;
-    delete fallbackRow.quick_action_1;
-    delete fallbackRow.quick_action_2;
-    delete fallbackRow.quick_action_3;
-    
+    const errMsg = dbError.message || '';
+
+    // Only delete quick_actions if quick_action caused the error or general column mismatch occurred
+    if (errMsg.includes('quick_action') || (!errMsg.includes('wifi_password') && !errMsg.includes('cover_photo_url'))) {
+      delete fallbackRow.quick_action_1;
+      delete fallbackRow.quick_action_2;
+      delete fallbackRow.quick_action_3;
+    }
+
+    // Only delete wifi_password if the error explicitly names wifi_password
+    if (errMsg.includes('wifi_password')) {
+      delete fallbackRow.wifi_password;
+      delete fallbackRow.wifi_password_label;
+    }
+
+    // Only delete cover_photo_url if the error explicitly names cover_photo_url
+    if (errMsg.includes('cover_photo_url') || errMsg.includes('cover_photo')) {
+      delete fallbackRow.cover_photo_url;
+      delete fallbackRow.cover_photo;
+    }
+
     let retryQuery = supabase.from('business_cards');
     const { error: retryError } = originalSlug 
       ? await retryQuery.update(fallbackRow).eq('slug', originalSlug)
@@ -333,6 +349,28 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
       
     if (!retryError) {
       dbError = null;
+    } else {
+      // Second attempt: if both quick_actions and wifi_password fail due to schema differences, strip missing optional fields
+      const minimalRow = { ...fallbackRow };
+      delete minimalRow.quick_action_1;
+      delete minimalRow.quick_action_2;
+      delete minimalRow.quick_action_3;
+      if (retryError.message?.includes('wifi_password')) {
+        delete minimalRow.wifi_password;
+        delete minimalRow.wifi_password_label;
+      }
+      if (retryError.message?.includes('cover_photo')) {
+        delete minimalRow.cover_photo_url;
+        delete minimalRow.cover_photo;
+      }
+      const { error: minError } = originalSlug
+        ? await supabase.from('business_cards').update(minimalRow).eq('slug', originalSlug)
+        : await supabase.from('business_cards').insert(minimalRow);
+      if (!minError) {
+        dbError = null;
+      } else {
+        dbError = minError;
+      }
     }
   }
 

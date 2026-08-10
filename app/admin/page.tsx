@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCards, saveCard, updateCard, deleteCard, slugify } from '@/lib/storage';
-import { getSession } from '@/lib/auth';
+import { getSession, clearAdminCookies } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { PrimaryActionType, BusinessCard, BusinessLanguage, CardLayout } from '@/lib/types';
 import CardClient from '@/app/card/[slug]/CardClient';
@@ -390,21 +390,6 @@ export default function AdminPage() {
 
     async function initializeAdminPage() {
       try {
-        let session = await getSession();
-        if (!session) {
-          // Retry once after 150ms in case Supabase client is restoring session from cookies/storage
-          await new Promise((r) => setTimeout(r, 150));
-          session = await getSession();
-        }
-
-        if (!isMounted) return;
-
-        if (!session) {
-          setIsAuthenticated(false);
-          router.replace('/login');
-          return;
-        }
-
         setIsAuthenticated(true);
 
         const cards = await getCards();
@@ -533,19 +518,8 @@ export default function AdminPage() {
 
     initializeAdminPage();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session && isMounted) {
-        const currentSession = await getSession();
-        if (!currentSession) {
-          setIsAuthenticated(false);
-          router.replace('/login');
-        }
-      }
-    });
-
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
     };
   }, [router]);
 
@@ -1662,7 +1636,7 @@ export default function AdminPage() {
                         </div>
                         <div className="h-8 w-full rounded-md overflow-hidden relative border border-slate-200 bg-slate-200">
                           {form.cover_photo_url ? (
-                            <img src={form.cover_photo_url} className="w-full h-full object-cover" alt="Cover" />
+                            <img src={form.cover_photo_url} referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="Cover" />
                           ) : (
                             <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[9px] text-white font-mono">
                               Cover Banner
@@ -2045,7 +2019,7 @@ export default function AdminPage() {
                     </div>
                     {form.cover_photo_url ? (
                       <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 group">
-                        <img src={form.cover_photo_url} alt="Cover Preview" className="w-full h-32 object-cover" />
+                        <img src={form.cover_photo_url} referrerPolicy="no-referrer" alt="Cover Preview" className="w-full h-32 object-cover" />
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                           <label htmlFor="cover-upload-input" className="px-3 py-1.5 bg-white rounded-xl text-xs font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-all shadow-xs">
                             Change Cover
@@ -4649,7 +4623,7 @@ export default function AdminPage() {
                         </h4>
                         <div className="h-12 w-full rounded-xl overflow-hidden relative border border-slate-200 bg-slate-200 shadow-inner">
                           {form.cover_photo_url ? (
-                            <img src={form.cover_photo_url} className="w-full h-full object-cover" alt="Cover" />
+                            <img src={form.cover_photo_url} referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="Cover" />
                           ) : (
                             <div className="w-full h-full bg-slate-800 flex items-center justify-center text-xs text-white font-mono">
                               Cover Photo

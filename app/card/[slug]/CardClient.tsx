@@ -105,6 +105,7 @@ function Design3CardView({
   cardDefaultLang?: BusinessLanguage;
 }) {
   const [coverLoaded, setCoverLoaded] = useState(false);
+  const [coverError, setCoverError] = useState(false);
 
   // Google Maps URL derivation
   const mapUrl = card.address_type === 'text' && card.google_maps
@@ -271,7 +272,7 @@ function Design3CardView({
       {/* Cover Photo Header - ONLY FOR DESIGN 3 */}
       {card.layout === 'design3' && (
         <div className="relative w-full h-52 sm:h-60 bg-slate-950 overflow-hidden">
-          {card.cover_photo_url ? (
+          {card.cover_photo_url && !coverError ? (
             <>
               {!coverLoaded && (
                 <div className="absolute inset-0 bg-slate-900 animate-pulse flex items-center justify-center">
@@ -281,7 +282,12 @@ function Design3CardView({
               <img
                 src={card.cover_photo_url}
                 alt={card.name}
+                referrerPolicy="no-referrer"
                 onLoad={() => setCoverLoaded(true)}
+                onError={() => {
+                  setCoverLoaded(true);
+                  setCoverError(true);
+                }}
                 className={`w-full h-full object-cover transition-opacity duration-500 ${coverLoaded ? 'opacity-100' : 'opacity-0'}`}
               />
             </>
