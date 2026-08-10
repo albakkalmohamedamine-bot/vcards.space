@@ -458,33 +458,60 @@ function Design3CardView({
                 </div>
               </div>
             )}
+
+            {/* Website */}
+            {card.website && (
+              <div className="flex items-center gap-3.5 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-slate-200/60 flex items-center justify-center shrink-0 text-slate-600">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block font-mono text-[10px] font-extrabold tracking-widest text-slate-400 uppercase">
+                    {getLabel(card.website_label, 'website').toUpperCase()}
+                  </span>
+                  <a
+                    href={card.website.startsWith('http') ? card.website : `https://${card.website}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block font-mono font-bold text-sm hover:underline truncate mt-0.5"
+                    style={{ color: themeColor }}
+                  >
+                    {card.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Address with View / Open on Map Button at the end of the address text */}
+            {(card.address || card.google_maps) && (
+              <div className="flex items-start gap-3.5 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-slate-200/60 flex items-center justify-center shrink-0 text-slate-600 mt-0.5">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block font-mono text-[10px] font-extrabold tracking-widest text-slate-400 uppercase">
+                    {translations.sectionLocation}
+                  </span>
+                  <div className="mt-1 font-sans text-xs sm:text-sm text-slate-800 font-medium leading-relaxed break-words">
+                    {card.address && (
+                      <span className="mr-2 inline">{card.address}</span>
+                    )}
+                    <a
+                      href={mapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold text-white shadow-2xs hover:brightness-110 active:scale-95 transition-all cursor-pointer my-0.5 align-middle"
+                      style={{ backgroundColor: themeColor }}
+                    >
+                      <MapPin className="w-3 h-3 shrink-0" />
+                      <span>{translations.showOnMap}</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Location Card */}
-        {(card.address || card.google_maps) && (
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
-            <div className="flex items-center gap-2 mb-3">
-              <MapPin className="w-4 h-4 shrink-0" style={{ color: themeColor }} />
-              <span className="font-mono text-xs font-extrabold tracking-[0.2em] text-slate-500 uppercase">
-                {translations.sectionLocation}
-              </span>
-            </div>
-            {card.address && (
-              <p className="font-sans text-xs sm:text-sm text-slate-700 font-medium leading-relaxed mb-4 whitespace-pre-line break-words">
-                {card.address}
-              </p>
-            )}
-            <a
-              href={mapUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-mono text-xs font-bold border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-all cursor-pointer min-h-[42px] touch-manipulation shadow-2xs"
-            >
-              {translations.showOnMap}
-            </a>
-          </div>
-        )}
 
         {/* Delivery / WiFi Card */}
         {((card.delivery_enabled && card.delivery_number) || card.wifi_password) && (
@@ -522,27 +549,6 @@ function Design3CardView({
                 </span>
               </button>
             )}
-          </div>
-        )}
-
-        {/* Web Links Card */}
-        {card.website && (
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
-            <div className="flex items-center gap-2 mb-3">
-              <Globe className="w-4 h-4 shrink-0" style={{ color: themeColor }} />
-              <span className="font-mono text-xs font-extrabold tracking-[0.2em] text-slate-500 uppercase">
-                {translations.webLinks}
-              </span>
-            </div>
-            <a
-              href={card.website.startsWith('http') ? card.website : `https://${card.website}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block font-mono text-xs font-bold hover:underline break-all uppercase tracking-wider"
-              style={{ color: themeColor }}
-            >
-              {getLabel(card.website_label, 'website')}
-            </a>
           </div>
         )}
 

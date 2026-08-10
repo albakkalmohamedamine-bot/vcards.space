@@ -1130,6 +1130,41 @@ export default function AdminPage() {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
+  const scrollToField = (fieldKey: string) => {
+    const possibleIds = [
+      `${fieldKey}-input`,
+      `${fieldKey}-select`,
+      `${fieldKey}-upload`,
+      `${fieldKey}-field`,
+      `${fieldKey}-section`,
+      `${fieldKey.replace(/_/g, '-')}-input`,
+      `${fieldKey.replace(/_/g, '-')}-select`,
+      `${fieldKey.replace(/_/g, '-')}-upload`,
+      `${fieldKey.replace(/_/g, '-')}-field`,
+      fieldKey,
+    ];
+
+    for (const id of possibleIds) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        try {
+          if ('focus' in el && typeof el.focus === 'function') {
+            el.focus();
+          }
+        } catch {
+          // ignore focus error
+        }
+        el.classList.add('ring-4', 'ring-red-500/60', 'border-red-500');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-red-500/60');
+        }, 2500);
+        return true;
+      }
+    }
+    return false;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -1137,9 +1172,17 @@ export default function AdminPage() {
 
     const trimmedName = form.name.trim();
     if (!trimmedName) {
-      newFieldErrors.name = 'Business Name is required.';
+      newFieldErrors.name = 'Business / Card Name is required.';
     } else if (trimmedName.length > 100) {
       newFieldErrors.name = 'Business Name must be 100 characters or less.';
+    }
+
+    if (!form.logo || !form.logo.trim()) {
+      newFieldErrors.logo = 'Logo is required.';
+    }
+
+    if (!form.cover_photo_url || !form.cover_photo_url.trim()) {
+      newFieldErrors.cover_photo_url = 'Cover photo is required.';
     }
 
     if (form.tagline && form.tagline.trim().length > 200) {
@@ -1149,7 +1192,7 @@ export default function AdminPage() {
     const trimmedEmail = form.email.trim();
     if (trimmedEmail) {
       if (!isValidEmail(trimmedEmail)) {
-        newFieldErrors.email = 'Please enter a valid email address (e.g. name@domain.com).';
+        newFieldErrors.email = 'Please enter a valid email address (e.g. contact@domain.com).';
       } else if (trimmedEmail.length > 100) {
         newFieldErrors.email = 'Email address must be 100 characters or less.';
       }
@@ -1195,6 +1238,18 @@ export default function AdminPage() {
       newFieldErrors.youtube = 'Invalid or unsafe YouTube link.';
     }
 
+    const cleanGoogleMaps = sanitizeUrl(form.google_maps);
+    if (form.google_maps.trim() && !cleanGoogleMaps) {
+      newFieldErrors.google_maps = 'Invalid or unsafe Google Maps link.';
+    }
+
+    if (form.rate_us_enabled && form.review_url.trim()) {
+      const cleanReviewUrl = sanitizeUrl(form.review_url);
+      if (!cleanReviewUrl) {
+        newFieldErrors.review_url = 'Invalid or unsafe Google Review URL.';
+      }
+    }
+
     const trimmedSlug = slug.trim();
     if (!trimmedSlug) {
       newFieldErrors.slug = 'URL Slug is required.';
@@ -1207,7 +1262,7 @@ export default function AdminPage() {
           ? (finalSlug !== editingSlug && existingSlugs.includes(finalSlug))
           : existingSlugs.includes(finalSlug);
         if (isTaken) {
-          newFieldErrors.slug = 'This URL slug is already taken by another card.';
+          newFieldErrors.slug = 'This URL slug is already taken by another card. Please choose a unique slug.';
         }
       }
     }
@@ -1237,40 +1292,68 @@ export default function AdminPage() {
       }
     }
 
-    if (form.layout === 'business' && form.delivery_enabled && !form.delivery_number.trim()) {
-      newFieldErrors.delivery_number = 'Delivery Number is required when Delivery Contact is enabled.';
+    if (form.delivery_enabled) {
+      if (!form.delivery_number.trim()) {
+        newFieldErrors.delivery_number = 'Delivery Contact Number is required when Delivery Contact is enabled.';
+      } else {
+        const digitsOnly = form.delivery_number.replace(/\D/g, '');
+        if (digitsOnly.length < 5) {
+          newFieldErrors.delivery_number = 'Please enter a valid delivery contact number (at least 5 digits).';
+        }
+      }
     }
 
-    const primaryFieldValue = form.primary_action === 'phone'
-      ? formattedPhone
-      : form.primary_action === 'landline'
-      ? formattedLandline
-      : form.primary_action === 'whatsapp'
-      ? formattedWhatsapp
-      : form[form.primary_action];
+    // Validate Primary Action Target Field
+    if (form.primary_action) {
+      const actionKey = form.primary_action;
+      const targetVal = actionKey === 'phone'
+        ? formattedPhone
+        : actionKey === 'landline'
+        ? formattedLandline
+        : actionKey === 'whatsapp'
+        ? formattedWhatsapp
+        : form[actionKey as keyof typeof form];
 
-    if (!primaryFieldValue) {
-      newFieldErrors.primary_action = `Please provide details for the selected Primary Action (${form.primary_action}).`;
+      if (!targetVal || (typeof targetVal === 'string' && !targetVal.trim())) {
+        const actionLabelMap: Record<string, string> = {
+          phone: 'Phone Number',
+          landline: 'Landline Number',
+          whatsapp: 'WhatsApp Number',
+          email: 'Email Address',
+          website: 'Website URL',
+          address: 'Address / Location',
+          google_maps: 'Google Maps Link',
+          instagram: 'Instagram Link',
+          facebook: 'Facebook Link',
+          tiktok: 'TikTok Link',
+          snapchat: 'Snapchat Link',
+          linkedin: 'LinkedIn Link',
+          twitter: 'X (Twitter) Link',
+          youtube: 'YouTube Link',
+          review_url: 'Google Review URL',
+          wifi: 'WiFi Password',
+          menu: 'Menu PDF File'
+        };
+        const readableTarget = actionLabelMap[actionKey] || actionKey;
+        newFieldErrors.primary_action = `Primary Action is set to "${readableTarget}", but no ${readableTarget} was provided.`;
+        if (actionKey in form) {
+          newFieldErrors[actionKey] = `${readableTarget} is required because it is selected as your Primary Action button.`;
+        }
+      }
     }
 
     if (Object.keys(newFieldErrors).length > 0) {
       setFieldErrors(newFieldErrors);
       setError('Please fix the errors highlighted below in the form.');
 
-      const firstField = Object.keys(newFieldErrors)[0];
-      if (firstField) {
-        const targetElement = document.getElementById(`${firstField}-input`) || document.getElementById(`${firstField}-field`) || document.getElementById(`${firstField}-upload`);
-        if (targetElement) {
-          targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          targetElement.focus?.();
-        }
-      }
+      const firstFieldKey = Object.keys(newFieldErrors)[0];
+      setTimeout(() => {
+        scrollToField(firstFieldKey);
+      }, 50);
       return;
     }
 
     setFieldErrors({});
-
-    const cleanGoogleMaps = sanitizeUrl(form.google_maps);
 
     const finalSlug = slugify(slug);
     const newCard: BusinessCard = {
@@ -1545,8 +1628,56 @@ export default function AdminPage() {
               </div>
             )}
 
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-xl text-red-800 text-sm flex items-start gap-2">
+            {/* Interactive Error Summary Box */}
+            {Object.keys(fieldErrors).length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                id="error-summary-banner"
+                className="mb-8 p-5 bg-red-50/90 border-2 border-red-300 rounded-2xl shadow-sm text-red-900 relative overflow-hidden"
+              >
+                <div className="flex items-start gap-3.5">
+                  <div className="p-2.5 bg-red-100/90 rounded-xl text-red-600 shrink-0 mt-0.5 border border-red-200 shadow-2xs">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+                      <h3 className="font-bold text-sm text-red-950 flex items-center gap-2">
+                        <span>Please fix the following {Object.keys(fieldErrors).length} field error{Object.keys(fieldErrors).length > 1 ? 's' : ''}:</span>
+                      </h3>
+                      <span className="text-[10px] font-mono font-bold bg-red-200/80 text-red-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                        Click error to jump to field
+                      </span>
+                    </div>
+                    <p className="text-xs text-red-700/90 mb-3 font-sans leading-relaxed">
+                      We highlighted the exact field(s) causing the issue. Click any button below to immediately scroll and focus on that field:
+                    </p>
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {Object.entries(fieldErrors).map(([fieldKey, msg]) => (
+                        <li key={fieldKey}>
+                          <button
+                            type="button"
+                            onClick={() => scrollToField(fieldKey)}
+                            className="w-full text-left p-2.5 rounded-xl bg-white/95 hover:bg-white border border-red-200 hover:border-red-400 text-xs text-red-900 font-medium transition-all shadow-2xs hover:shadow-xs flex items-center gap-2 cursor-pointer group"
+                          >
+                            <span className="w-2 h-2 rounded-full bg-red-500 group-hover:scale-125 transition-transform shrink-0" />
+                            <div className="truncate min-w-0">
+                              <span className="font-bold capitalize text-red-950 mr-1.5">
+                                {fieldKey.replace(/_/g, ' ')}:
+                              </span>
+                              <span className="text-red-700">{msg}</span>
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {error && Object.keys(fieldErrors).length === 0 && (
+              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-xl text-red-800 text-sm flex items-start gap-2 shadow-2xs">
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
@@ -3883,11 +4014,30 @@ export default function AdminPage() {
             </>
           )}
 
+              {/* Bottom Error Notification Banner */}
+              {Object.keys(fieldErrors).length > 0 && (
+                <div className="p-3.5 bg-red-50/90 border border-red-300 rounded-2xl text-xs text-red-900 flex items-center justify-between flex-wrap gap-2.5 my-3 shadow-2xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                    <span className="font-medium text-red-950">
+                      Form cannot be saved due to <strong>{Object.keys(fieldErrors).length} error(s)</strong>.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => scrollToField(Object.keys(fieldErrors)[0])}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white rounded-xl font-mono text-[11px] font-bold shrink-0 cursor-pointer transition-all shadow-2xs"
+                  >
+                    Jump to 1st Error ↑
+                  </button>
+                </div>
+              )}
+
               {/* Submit Button */}
               <button
                 type="submit"
                 disabled={!editingSlug && existingSlugs.includes(slug)}
-                className="w-full h-13 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-2xl shadow-sm hover:shadow-md transition-all text-sm tracking-wide mt-4 flex items-center justify-center gap-2 select-none touch-manipulation cursor-pointer active:scale-98"
+                className="w-full h-13 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-2xl shadow-sm hover:shadow-md transition-all text-sm tracking-wide mt-2 flex items-center justify-center gap-2 select-none touch-manipulation cursor-pointer active:scale-98"
               >
                 {editingSlug ? (
                   <>
