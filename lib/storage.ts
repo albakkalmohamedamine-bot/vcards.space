@@ -318,26 +318,26 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
   
   let { error: dbError } = result;
 
-  // If a column doesn't exist in the database, progressively strip ONLY the missing columns that failed
+  // If a column doesn't exist in the database schema, progressively strip ONLY the missing columns that failed
   if (dbError && (dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
     const fallbackRow: any = { ...row };
-    const errMsg = dbError.message || '';
+    const errMsg = (dbError.message || '').toLowerCase();
 
-    // Only delete quick_actions if quick_action caused the error or general column mismatch occurred
-    if (errMsg.includes('quick_action') || (!errMsg.includes('wifi_password') && !errMsg.includes('cover_photo_url'))) {
+    // Delete quick_action fields ONLY if the error explicitly names quick_action
+    if (errMsg.includes('quick_action')) {
       delete fallbackRow.quick_action_1;
       delete fallbackRow.quick_action_2;
       delete fallbackRow.quick_action_3;
     }
 
-    // Only delete wifi_password if the error explicitly names wifi_password
+    // Delete wifi_password ONLY if the error explicitly names wifi_password
     if (errMsg.includes('wifi_password')) {
       delete fallbackRow.wifi_password;
       delete fallbackRow.wifi_password_label;
     }
 
-    // Only delete cover_photo_url if the error explicitly names cover_photo_url
-    if (errMsg.includes('cover_photo_url') || errMsg.includes('cover_photo')) {
+    // Delete cover_photo_url ONLY if the error explicitly names cover_photo_url or cover_photo
+    if (errMsg.includes('cover_photo')) {
       delete fallbackRow.cover_photo_url;
       delete fallbackRow.cover_photo;
     }
@@ -350,22 +350,27 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
     if (!retryError) {
       dbError = null;
     } else {
-      // Second attempt: if both quick_actions and wifi_password fail due to schema differences, strip missing optional fields
+      // Second attempt: if multiple columns are missing, strip only those indicated in retryError
       const minimalRow = { ...fallbackRow };
-      delete minimalRow.quick_action_1;
-      delete minimalRow.quick_action_2;
-      delete minimalRow.quick_action_3;
-      if (retryError.message?.includes('wifi_password')) {
+      const retryMsg = (retryError.message || '').toLowerCase();
+      if (retryMsg.includes('quick_action')) {
+        delete minimalRow.quick_action_1;
+        delete minimalRow.quick_action_2;
+        delete minimalRow.quick_action_3;
+      }
+      if (retryMsg.includes('wifi_password')) {
         delete minimalRow.wifi_password;
         delete minimalRow.wifi_password_label;
       }
-      if (retryError.message?.includes('cover_photo')) {
+      if (retryMsg.includes('cover_photo')) {
         delete minimalRow.cover_photo_url;
         delete minimalRow.cover_photo;
       }
+
       const { error: minError } = originalSlug
         ? await supabase.from('business_cards').update(minimalRow).eq('slug', originalSlug)
         : await supabase.from('business_cards').insert(minimalRow);
+
       if (!minError) {
         dbError = null;
       } else {

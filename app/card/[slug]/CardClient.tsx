@@ -106,6 +106,19 @@ function Design3CardView({
 }) {
   const [coverLoaded, setCoverLoaded] = useState(false);
   const [coverError, setCoverError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    if (imgRef.current) {
+      if (imgRef.current.complete) {
+        if (imgRef.current.naturalWidth === 0) {
+          setCoverError(true);
+        } else {
+          setCoverLoaded(true);
+        }
+      }
+    }
+  }, [card.cover_photo_url]);
 
   // Google Maps URL derivation
   const mapUrl = card.address_type === 'text' && card.google_maps
@@ -280,6 +293,7 @@ function Design3CardView({
                 </div>
               )}
               <img
+                ref={imgRef}
                 src={card.cover_photo_url}
                 alt={card.name}
                 referrerPolicy="no-referrer"
