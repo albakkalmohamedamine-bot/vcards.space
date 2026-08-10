@@ -1,17 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { TEMPORARY_ADMIN_MODE } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rateLimit';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  // If user visits /login, redirect directly to /admin
-  if (pathname === '/login') {
-    const adminUrl = new URL('/admin', request.url);
-    return NextResponse.redirect(adminUrl);
-  }
 
   // Check if static asset or internal build file
   const isStaticAsset =

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCards, saveCard, updateCard, deleteCard, slugify } from '@/lib/storage';
-import { getSession, clearAdminCookies } from '@/lib/auth';
+import { getSession, signOut } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { PrimaryActionType, BusinessCard, BusinessLanguage, CardLayout } from '@/lib/types';
 import CardClient from '@/app/card/[slug]/CardClient';
@@ -47,7 +47,8 @@ import {
   PhoneCall,
   Star,
   Wifi,
-  Truck
+  Truck,
+  LogOut
 } from 'lucide-react';
 
 const MotorcycleDeliveryIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
@@ -390,6 +391,13 @@ export default function AdminPage() {
 
     async function initializeAdminPage() {
       try {
+        const session = await getSession();
+        if (!session) {
+          router.replace('/login');
+          return;
+        }
+
+        if (!isMounted) return;
         setIsAuthenticated(true);
 
         const cards = await getCards();
@@ -1494,10 +1502,24 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white font-mono text-[10px] uppercase font-bold tracking-widest shadow-xs">
-            <Sparkles className="w-3 h-3 text-amber-400" />
-            {editingSlug ? 'Edit Mode' : 'Live Provisioning'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white font-mono text-[10px] uppercase font-bold tracking-widest shadow-xs">
+              <Sparkles className="w-3 h-3 text-amber-400" />
+              {editingSlug ? 'Edit Mode' : 'Live Provisioning'}
+            </span>
+            <button
+              type="button"
+              onClick={async () => {
+                await signOut();
+                router.push('/login');
+              }}
+              className="p-2 sm:px-3 sm:py-1.5 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-2xl transition-all text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
         </div>
 
         {/* Main Grid: Form Left (7 cols) + Live Preview Right (5 cols) */}

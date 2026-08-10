@@ -56,17 +56,28 @@ export default function Home() {
   useEffect(() => {
     let isMounted = true;
 
-    getCards().then((clientCards) => {
+    async function checkAuthAndLoad() {
+      const session = await getSession();
+      if (!session) {
+        router.replace('/login');
+        return;
+      }
+
+      if (!isMounted) return;
+      setIsLoggedIn(true);
+
+      const clientCards = await getCards();
       if (!isMounted) return;
       setCards(clientCards);
-      setIsLoggedIn(true);
       setLoading(false);
-    });
+    }
+
+    checkAuthAndLoad();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [router]);
 
   const handleCopyLink = (slug: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -108,6 +119,25 @@ export default function Home() {
     <main id="main-landing" className="min-h-screen bg-slate-50 py-12 px-4 md:px-8 font-sans text-slate-800 relative">
       <div className="max-w-5xl mx-auto">
         
+        {/* Top Navigation Bar */}
+        <div className="flex items-center justify-between mb-10 pb-4 border-b border-slate-200/80">
+          <div className="flex items-center gap-2.5">
+            <img src="/logo-navy.svg" alt="VCARDS SPACE" className="h-7 w-auto" />
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">Admin Console</span>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              await signOut();
+              router.push('/login');
+            }}
+            className="flex items-center gap-2 px-3.5 py-1.5 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-xl text-xs font-mono font-bold transition-all shadow-2xs cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Logout</span>
+          </button>
+        </div>
+
         {/* Hero Branding Section */}
         <div className="text-center max-w-2xl mx-auto mb-16 pt-8 md:pt-0 flex flex-col items-center">
           <motion.div
