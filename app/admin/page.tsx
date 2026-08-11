@@ -97,6 +97,24 @@ const InlineFieldError = ({ message }: { message?: string }) => {
   );
 };
 
+const RestaurantMenuIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {/* Menu Booklet / Folder */}
+    <rect x="3" y="2" width="18" height="20" rx="2.5" ry="2.5" />
+    {/* Book Binding Spine */}
+    <path d="M6.5 2v20" strokeWidth="1.5" />
+    {/* Decorative Header Accent */}
+    <path d="M9.5 5h7" strokeWidth="1.2" strokeOpacity="0.5" />
+    {/* Fork (Left) */}
+    <path d="M10 8v2.5a1 1 0 0 0 2 0V8" />
+    <path d="M11 8v2.5" />
+    <path d="M11 10.5v6.5" />
+    {/* Knife (Right) */}
+    <path d="M16 8v3a1.2 1.2 0 0 1-1.2-1.2V8a1 1 0 0 1 1.2 0z" fill="currentColor" fillOpacity="0.2" />
+    <path d="M16 11v6" />
+  </svg>
+);
+
 const getActionIcon = (type: string, className = 'w-5 h-5') => {
   switch (type) {
     case 'phone': return <Phone className={className} />;
@@ -137,6 +155,8 @@ const getActionIcon = (type: string, className = 'w-5 h-5') => {
         <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
       </svg>
     );
+    case 'menu_pdf':
+    case 'menu': return <RestaurantMenuIcon className={className} />;
     default: return <Plus className={className} />;
   }
 };
@@ -1303,44 +1323,7 @@ export default function AdminPage() {
       }
     }
 
-    // Validate Primary Action Target Field
-    if (form.primary_action) {
-      const actionKey = form.primary_action;
-      const targetVal = actionKey === 'phone'
-        ? formattedPhone
-        : actionKey === 'landline'
-        ? formattedLandline
-        : actionKey === 'whatsapp'
-        ? formattedWhatsapp
-        : form[actionKey as keyof typeof form];
 
-      if (!targetVal || (typeof targetVal === 'string' && !targetVal.trim())) {
-        const actionLabelMap: Record<string, string> = {
-          phone: 'Phone Number',
-          landline: 'Landline Number',
-          whatsapp: 'WhatsApp Number',
-          email: 'Email Address',
-          website: 'Website URL',
-          address: 'Address / Location',
-          google_maps: 'Google Maps Link',
-          instagram: 'Instagram Link',
-          facebook: 'Facebook Link',
-          tiktok: 'TikTok Link',
-          snapchat: 'Snapchat Link',
-          linkedin: 'LinkedIn Link',
-          twitter: 'X (Twitter) Link',
-          youtube: 'YouTube Link',
-          review_url: 'Google Review URL',
-          wifi: 'WiFi Password',
-          menu: 'Menu PDF File'
-        };
-        const readableTarget = actionLabelMap[actionKey] || actionKey;
-        newFieldErrors.primary_action = `Primary Action is set to "${readableTarget}", but no ${readableTarget} was provided.`;
-        if (actionKey in form) {
-          newFieldErrors[actionKey] = `${readableTarget} is required because it is selected as your Primary Action button.`;
-        }
-      }
-    }
 
     if (Object.keys(newFieldErrors).length > 0) {
       setFieldErrors(newFieldErrors);
