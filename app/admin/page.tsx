@@ -1201,10 +1201,6 @@ export default function AdminPage() {
       newFieldErrors.logo = 'Logo is required.';
     }
 
-    if (!form.cover_photo_url || !form.cover_photo_url.trim()) {
-      newFieldErrors.cover_photo_url = 'Cover photo is required.';
-    }
-
     if (form.tagline && form.tagline.trim().length > 200) {
       newFieldErrors.tagline = 'Tagline must be 200 characters or less.';
     }
@@ -2147,7 +2143,7 @@ export default function AdminPage() {
 
                 {/* Cover Photo Upload Pipeline - ONLY FOR DESIGN 3 */}
                 {form.layout === 'design3' && (
-                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-3">
+                  <div id="cover_photo_url-field" className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-3">
                     <div className="flex items-center justify-between">
                       <label className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
                         Header Cover Photo <span className="text-indigo-600">(For Design 3)</span>
