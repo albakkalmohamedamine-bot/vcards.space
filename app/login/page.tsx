@@ -4,40 +4,41 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession, signInWithEmail } from '@/lib/auth';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, Mail, Eye, EyeOff, Check, AlertCircle, ShieldCheck } from 'lucide-react';
+import { 
+  Mail, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  ArrowRight, 
+  ShieldCheck, 
+  AlertCircle,
+  Sparkles
+} from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [shakeKey, setShakeKey] = useState(0);
-  const [diagnosticStep, setDiagnosticStep] = useState<string>('Idle');
-  const [diagnosticLog, setDiagnosticLog] = useState<string[]>([]);
-
-  const addLog = (msg: string) => {
-    setDiagnosticStep(msg);
-    setDiagnosticLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
-  };
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    addLog('Step 1/4: Checking existing session on initial page load...');
-    getSession().then((session) => {
-      if (!isMounted) return;
+
+    async function checkExistingAuth() {
+      const session = await getSession();
       if (session) {
-        addLog('Existing session found! Navigating to /admin...');
         router.replace('/admin');
       } else {
-        addLog('No active session found. Ready for user credentials.');
+        if (isMounted) {
+          setIsCheckingAuth(false);
+        }
       }
-    }).catch((err) => {
-      if (!isMounted) return;
-      addLog(`Error checking session: ${err.message || String(err)}`);
-    });
+    }
+
+    checkExistingAuth();
 
     return () => {
       isMounted = false;
@@ -46,288 +47,170 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email.trim() || !password) {
+      setError('Please fill in both email and password.');
+      return;
+    }
+
     setError(null);
     setIsLoading(true);
-    setDiagnosticLog([]);
 
-    addLog('Step 1/4: Authenticating credentials via signInWithEmail...');
-    const result = await signInWithEmail(email, password);
-
-    if (result.success) {
-      addLog('Step 2/4: Credentials valid. Verifying session state in Supabase...');
-
-      // Robust check: Verify that getSession() returns an active session from Supabase state
-      let activeSession = await getSession();
-      let attempts = 0;
-      const maxAttempts = 5;
-
-      while (!activeSession && attempts < maxAttempts) {
-        attempts++;
-        addLog(`Step 2/4: Retrying session check (attempt ${attempts}/${maxAttempts})...`);
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        activeSession = await getSession();
-      }
-
-      // Fallback to session returned from signInWithPassword if getSession loop hasn't settled
-      if (!activeSession && result.session) {
-        activeSession = result.session;
-      }
-
-      if (activeSession && activeSession.user) {
-        setIsSuccess(true);
-        addLog(`Step 3/4: Session confirmed active (User ID: ${activeSession.user.id.slice(0, 8)}...).`);
-        addLog('Step 4/4: Navigating to Admin Dashboard (/admin)...');
-
-        // Short pause to ensure UI success state renders and cookies settle
-        await new Promise((resolve) => setTimeout(resolve, 300));
-
-        // Execute router.replace('/admin')
-        router.replace('/admin');
+    try {
+      const result = await signInWithEmail(email, password);
+      if (result.success) {
+        router.push('/admin');
       } else {
+        setError(result.error || 'Invalid credentials. Please verify your email and password.');
         setIsLoading(false);
-        setIsSuccess(false);
-        setError('Session verification failed. Please try signing in again.');
-        addLog('ERROR: Could not verify active session in Supabase state.');
-        setShakeKey((prev) => prev + 1);
       }
-    } else {
+    } catch (err: any) {
+      setError(err?.message || 'An unexpected authentication error occurred.');
       setIsLoading(false);
-      setIsSuccess(false);
-      setError(result.error || 'Invalid credentials');
-      addLog(`Auth FAILED: ${result.error || 'Invalid credentials'}`);
-      setShakeKey((prev) => prev + 1);
     }
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0, y: 24 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        type: 'spring' as const,
-        stiffness: 90,
-        damping: 16,
-        staggerChildren: 0.09,
-        delayChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 14 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        type: 'spring' as const,
-        stiffness: 110,
-        damping: 14,
-      },
-    },
-  };
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+        <div className="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mb-4" />
+        <p className="text-slate-400 text-xs font-mono uppercase tracking-widest">Checking Authentication Session...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#F2EBDD] text-slate-900 flex flex-col justify-between p-4 sm:p-6 relative overflow-hidden font-sans selection:bg-amber-200">
-      {/* Background Decorative Blur Spheres */}
-      <div className="absolute -top-24 -left-24 w-96 h-96 bg-amber-900/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-indigo-900/5 rounded-full blur-3xl pointer-events-none" />
+    <main className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-4 sm:p-6 font-sans relative overflow-hidden">
+      {/* Background Decorative Ambient Glows */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Top Header Bar */}
-      <div className="w-full max-w-md mx-auto flex items-center justify-end pt-2">
-        <span className="text-[10px] font-mono tracking-widest text-amber-900/60 uppercase font-bold bg-amber-900/5 px-3 py-1 rounded-full border border-amber-900/10">
-          Admin Portal
-        </span>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+        className="w-full max-w-md bg-slate-950/80 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-8 sm:p-10 shadow-2xl relative z-10"
+      >
+        {/* Header Logo & Title */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center p-3.5 bg-slate-900 border border-slate-800 rounded-2xl mb-4 shadow-inner">
+            <img 
+              src="/logo.svg" 
+              alt="VCARDS SPACE Logo" 
+              className="h-10 w-auto object-contain"
+              onError={(e) => {
+                // Fallback to logo-navy if logo.svg is dark
+                e.currentTarget.src = '/logo-navy.svg';
+              }}
+            />
+          </div>
 
-      {/* Main Login Card */}
-      <div className="my-auto py-8">
-        <motion.div
-          key={shakeKey}
-          initial={{ x: 0 }}
-          animate={shakeKey > 0 ? { x: [0, -12, 12, -8, 8, -4, 4, 0] } : { x: 0 }}
-          transition={{ duration: 0.45, ease: 'easeInOut' }}
-          className="w-full max-w-md mx-auto"
-        >
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="bg-white/90 backdrop-blur-md rounded-[32px] sm:rounded-[38px] shadow-[0_20px_60px_rgba(27,42,74,0.08)] border border-amber-900/10 p-6 sm:p-9 relative overflow-hidden"
-          >
-            {/* Loading & Success Animation Overlay */}
-            <AnimatePresence>
-              {(isLoading || isSuccess) && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.25 }}
-                  className="absolute inset-0 bg-white/95 backdrop-blur-md z-30 flex flex-col items-center justify-center p-6 text-center space-y-4"
-                >
-                  <div className="relative flex items-center justify-center">
-                    <div className="w-16 h-16 rounded-3xl bg-slate-900 text-amber-400 flex items-center justify-center shadow-xl border border-slate-800">
-                      {isSuccess ? <Check className="w-8 h-8 text-emerald-400" /> : <ShieldCheck className="w-8 h-8" />}
-                    </div>
-                    <div className="absolute -inset-2 rounded-3xl border-2 border-amber-600/30 border-t-amber-500 animate-spin" />
-                  </div>
-                  <div>
-                    <h3 className="font-serif text-xl font-bold text-slate-900">
-                      {isSuccess ? 'Access Granted!' : 'Authenticating...'}
-                    </h3>
-                    <p className="text-xs font-mono text-slate-500 mt-1 uppercase tracking-wider font-semibold">
-                      {isSuccess ? 'Loading Homepage...' : 'Connecting to Supabase'}
-                    </p>
-                  </div>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-full text-[10px] font-mono font-bold uppercase tracking-widest border border-indigo-500/20 mb-3">
+            <Sparkles className="w-3 h-3" /> Admin Security Gateway
+          </div>
 
-                  {/* On-screen diagnostic status step */}
-                  <div className="w-full max-w-xs bg-slate-900 text-amber-300 p-3 rounded-xl text-left text-[11px] font-mono border border-slate-700 space-y-1 overflow-x-auto max-h-36 shadow-inner">
-                    <div className="text-slate-400 font-bold border-b border-slate-800 pb-1 mb-1 uppercase tracking-wider text-[10px]">
-                      Diagnostic Log
-                    </div>
-                    {diagnosticLog.map((log, i) => (
-                      <div key={i} className="leading-tight break-all">
-                        {log}
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <h1 className="font-serif text-3xl font-bold text-white tracking-tight mb-2">
+            VCARDS SPACE
+          </h1>
+          <p className="text-slate-400 text-xs font-sans leading-relaxed">
+            Enter your administrative credentials to manage custom NFC digital card profiles.
+          </p>
+        </div>
 
-            {/* Top Branding Logo (Image 1 - Navy #25394d) */}
-            <motion.div variants={itemVariants} className="flex justify-center mb-4">
-              <div className="p-2.5 rounded-2xl bg-amber-900/5 border border-amber-900/10 flex items-center justify-center shadow-2xs">
-                <img 
-                  src="/logo-navy.svg" 
-                  alt="VCARDS SPACE Logo" 
-                  className="h-10 w-auto object-contain"
-                />
-              </div>
-            </motion.div>
-
-            {/* Heading */}
-            <motion.div variants={itemVariants} className="text-center space-y-1">
-              <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-[#1B2A4A]">
-                Admin Portal
-              </h1>
-              <p className="text-xs font-mono text-slate-500 uppercase tracking-widest font-semibold">
-                VCARDS SPACE MANAGEMENT
-              </p>
-            </motion.div>
-
-            {/* 8-Point Star Divider */}
+        {/* Error Banner */}
+        <AnimatePresence>
+          {error && (
             <motion.div
-              variants={itemVariants}
-              className="flex justify-center items-center gap-3 my-5 select-none"
-              aria-hidden="true"
+              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginBottom: 20 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              className="p-4 bg-red-950/60 border border-red-500/40 rounded-2xl text-red-200 text-xs flex items-start gap-3 shadow-sm overflow-hidden"
             >
-              <div className="h-[1px] w-12 bg-amber-900/15" />
-              <svg className="w-4 h-4 text-amber-800/70 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41L12 0Z" />
-              </svg>
-              <div className="h-[1px] w-12 bg-amber-900/15" />
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">{error}</div>
             </motion.div>
+          )}
+        </AnimatePresence>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Error Message */}
-              <AnimatePresence mode="wait">
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                    className="p-3.5 bg-red-50/90 border border-red-200/80 rounded-2xl flex items-center gap-3 text-red-700 text-xs font-medium shadow-2xs"
-                  >
-                    <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-                    <span>{error}</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+        {/* Login Form */}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block text-xs font-mono font-bold uppercase tracking-wider text-slate-300 mb-2">
+              Admin Email Address
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <Mail className="w-4 h-4" />
+              </span>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@example.com"
+                className="w-full pl-10 pr-4 py-3 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-sans"
+                autoComplete="email"
+              />
+            </div>
+          </div>
 
-              {/* Email Input */}
-              <motion.div variants={itemVariants} className="space-y-1.5">
-                <label className="block text-[11px] font-mono font-bold uppercase text-slate-700 tracking-wider">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@vcards.space"
-                    className="w-full h-12 pl-10 pr-4 bg-slate-50/80 hover:bg-white focus:bg-white rounded-2xl border border-slate-200 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]/20 focus:border-[#1B2A4A] transition-all text-sm font-sans text-slate-900 placeholder:text-slate-400"
-                  />
-                </div>
-              </motion.div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-mono font-bold uppercase tracking-wider text-slate-300">
+                Password
+              </label>
+            </div>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <Lock className="w-4 h-4" />
+              </span>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full pl-10 pr-11 py-3 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-sans"
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
 
-              {/* Password Input */}
-              <motion.div variants={itemVariants} className="space-y-1.5">
-                <label className="block text-[11px] font-mono font-bold uppercase text-slate-700 tracking-wider">
-                  Password
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password"
-                    className="w-full h-12 pl-10 pr-11 bg-slate-50/80 hover:bg-white focus:bg-white rounded-2xl border border-slate-200 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]/20 focus:border-[#1B2A4A] transition-all text-sm font-sans text-slate-900 placeholder:text-slate-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
-                    title={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </motion.div>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full mt-2 py-3.5 px-6 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900/60 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-xl transition-all shadow-lg hover:shadow-indigo-600/25 flex items-center justify-center gap-2 cursor-pointer group"
+          >
+            {isLoading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Authenticating...</span>
+              </>
+            ) : (
+              <>
+                <span>Sign In to Console</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </>
+            )}
+          </button>
+        </form>
 
-              {/* Submit Button */}
-              <motion.div variants={itemVariants} className="pt-2">
-                <motion.button
-                  whileTap={{ scale: 0.98 }}
-                  type="submit"
-                  disabled={isLoading || isSuccess}
-                  className={`w-full h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-300 shadow-md cursor-pointer ${
-                    isSuccess
-                      ? 'bg-emerald-600 text-white shadow-emerald-600/30'
-                      : 'bg-[#1B2A4A] hover:bg-slate-800 text-white shadow-indigo-900/20'
-                  }`}
-                >
-                  {isLoading ? (
-                    <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  ) : isSuccess ? (
-                    <>
-                      <Check className="w-5 h-5" />
-                      <span>Access Granted</span>
-                    </>
-                  ) : (
-                    <span>Sign In to Dashboard</span>
-                  )}
-                </motion.button>
-              </motion.div>
-            </form>
-          </motion.div>
-        </motion.div>
-      </div>
-
-      {/* Footer copyright */}
-      <div className="text-center text-[10px] font-mono text-slate-500 uppercase tracking-widest pb-2">
-        © VCARDS SPACE • SECURED ADMIN PORTAL
-      </div>
-    </div>
+        {/* Footer Security Badges */}
+        <div className="mt-8 pt-6 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Supabase Auth Protected</span>
+          </div>
+          <span>VCARDS SPACE v2.0</span>
+        </div>
+      </motion.div>
+    </main>
   );
 }
-

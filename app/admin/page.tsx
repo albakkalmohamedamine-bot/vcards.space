@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCards, saveCard, updateCard, deleteCard, slugify } from '@/lib/storage';
-import { getSession } from '@/lib/auth';
+import { getSession, signOut } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { PrimaryActionType, BusinessCard, BusinessLanguage, CardLayout } from '@/lib/types';
 import CardClient from '@/app/card/[slug]/CardClient';
@@ -47,7 +47,8 @@ import {
   PhoneCall,
   Star,
   Wifi,
-  Truck
+  Truck,
+  LogOut
 } from 'lucide-react';
 
 const MotorcycleDeliveryIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
@@ -96,6 +97,24 @@ const InlineFieldError = ({ message }: { message?: string }) => {
   );
 };
 
+const RestaurantMenuIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {/* Menu Booklet / Folder */}
+    <rect x="3" y="2" width="18" height="20" rx="2.5" ry="2.5" />
+    {/* Book Binding Spine */}
+    <path d="M6.5 2v20" strokeWidth="1.5" />
+    {/* Decorative Header Accent */}
+    <path d="M9.5 5h7" strokeWidth="1.2" strokeOpacity="0.5" />
+    {/* Fork (Left) */}
+    <path d="M10 8v2.5a1 1 0 0 0 2 0V8" />
+    <path d="M11 8v2.5" />
+    <path d="M11 10.5v6.5" />
+    {/* Knife (Right) */}
+    <path d="M16 8v3a1.2 1.2 0 0 1-1.2-1.2V8a1 1 0 0 1 1.2 0z" fill="currentColor" fillOpacity="0.2" />
+    <path d="M16 11v6" />
+  </svg>
+);
+
 const getActionIcon = (type: string, className = 'w-5 h-5') => {
   switch (type) {
     case 'phone': return <Phone className={className} />;
@@ -136,6 +155,8 @@ const getActionIcon = (type: string, className = 'w-5 h-5') => {
         <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
       </svg>
     );
+    case 'menu_pdf':
+    case 'menu': return <RestaurantMenuIcon className={className} />;
     default: return <Plus className={className} />;
   }
 };
@@ -390,21 +411,13 @@ export default function AdminPage() {
 
     async function initializeAdminPage() {
       try {
-        let session = await getSession();
+        const session = await getSession();
         if (!session) {
-          // Retry once after 150ms in case Supabase client is restoring session from cookies/storage
-          await new Promise((r) => setTimeout(r, 150));
-          session = await getSession();
-        }
-
-        if (!isMounted) return;
-
-        if (!session) {
-          setIsAuthenticated(false);
           router.replace('/login');
           return;
         }
 
+        if (!isMounted) return;
         setIsAuthenticated(true);
 
         const cards = await getCards();
@@ -533,19 +546,8 @@ export default function AdminPage() {
 
     initializeAdminPage();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session && isMounted) {
-        const currentSession = await getSession();
-        if (!currentSession) {
-          setIsAuthenticated(false);
-          router.replace('/login');
-        }
-      }
-    });
-
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
     };
   }, [router]);
 
@@ -1148,6 +1150,41 @@ export default function AdminPage() {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
+  const scrollToField = (fieldKey: string) => {
+    const possibleIds = [
+      `${fieldKey}-input`,
+      `${fieldKey}-select`,
+      `${fieldKey}-upload`,
+      `${fieldKey}-field`,
+      `${fieldKey}-section`,
+      `${fieldKey.replace(/_/g, '-')}-input`,
+      `${fieldKey.replace(/_/g, '-')}-select`,
+      `${fieldKey.replace(/_/g, '-')}-upload`,
+      `${fieldKey.replace(/_/g, '-')}-field`,
+      fieldKey,
+    ];
+
+    for (const id of possibleIds) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        try {
+          if ('focus' in el && typeof el.focus === 'function') {
+            el.focus();
+          }
+        } catch {
+          // ignore focus error
+        }
+        el.classList.add('ring-4', 'ring-red-500/60', 'border-red-500');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-red-500/60');
+        }, 2500);
+        return true;
+      }
+    }
+    return false;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -1155,9 +1192,13 @@ export default function AdminPage() {
 
     const trimmedName = form.name.trim();
     if (!trimmedName) {
-      newFieldErrors.name = 'Business Name is required.';
+      newFieldErrors.name = 'Business / Card Name is required.';
     } else if (trimmedName.length > 100) {
       newFieldErrors.name = 'Business Name must be 100 characters or less.';
+    }
+
+    if (!form.logo || !form.logo.trim()) {
+      newFieldErrors.logo = 'Logo is required.';
     }
 
     if (form.tagline && form.tagline.trim().length > 200) {
@@ -1167,7 +1208,7 @@ export default function AdminPage() {
     const trimmedEmail = form.email.trim();
     if (trimmedEmail) {
       if (!isValidEmail(trimmedEmail)) {
-        newFieldErrors.email = 'Please enter a valid email address (e.g. name@domain.com).';
+        newFieldErrors.email = 'Please enter a valid email address (e.g. contact@domain.com).';
       } else if (trimmedEmail.length > 100) {
         newFieldErrors.email = 'Email address must be 100 characters or less.';
       }
@@ -1213,6 +1254,18 @@ export default function AdminPage() {
       newFieldErrors.youtube = 'Invalid or unsafe YouTube link.';
     }
 
+    const cleanGoogleMaps = sanitizeUrl(form.google_maps);
+    if (form.google_maps.trim() && !cleanGoogleMaps) {
+      newFieldErrors.google_maps = 'Invalid or unsafe Google Maps link.';
+    }
+
+    if (form.rate_us_enabled && form.review_url.trim()) {
+      const cleanReviewUrl = sanitizeUrl(form.review_url);
+      if (!cleanReviewUrl) {
+        newFieldErrors.review_url = 'Invalid or unsafe Google Review URL.';
+      }
+    }
+
     const trimmedSlug = slug.trim();
     if (!trimmedSlug) {
       newFieldErrors.slug = 'URL Slug is required.';
@@ -1225,7 +1278,7 @@ export default function AdminPage() {
           ? (finalSlug !== editingSlug && existingSlugs.includes(finalSlug))
           : existingSlugs.includes(finalSlug);
         if (isTaken) {
-          newFieldErrors.slug = 'This URL slug is already taken by another card.';
+          newFieldErrors.slug = 'This URL slug is already taken by another card. Please choose a unique slug.';
         }
       }
     }
@@ -1255,40 +1308,31 @@ export default function AdminPage() {
       }
     }
 
-    if (form.layout === 'business' && form.delivery_enabled && !form.delivery_number.trim()) {
-      newFieldErrors.delivery_number = 'Delivery Number is required when Delivery Contact is enabled.';
+    if (form.delivery_enabled) {
+      if (!form.delivery_number.trim()) {
+        newFieldErrors.delivery_number = 'Delivery Contact Number is required when Delivery Contact is enabled.';
+      } else {
+        const digitsOnly = form.delivery_number.replace(/\D/g, '');
+        if (digitsOnly.length < 5) {
+          newFieldErrors.delivery_number = 'Please enter a valid delivery contact number (at least 5 digits).';
+        }
+      }
     }
 
-    const primaryFieldValue = form.primary_action === 'phone'
-      ? formattedPhone
-      : form.primary_action === 'landline'
-      ? formattedLandline
-      : form.primary_action === 'whatsapp'
-      ? formattedWhatsapp
-      : form[form.primary_action];
 
-    if (!primaryFieldValue) {
-      newFieldErrors.primary_action = `Please provide details for the selected Primary Action (${form.primary_action}).`;
-    }
 
     if (Object.keys(newFieldErrors).length > 0) {
       setFieldErrors(newFieldErrors);
       setError('Please fix the errors highlighted below in the form.');
 
-      const firstField = Object.keys(newFieldErrors)[0];
-      if (firstField) {
-        const targetElement = document.getElementById(`${firstField}-input`) || document.getElementById(`${firstField}-field`) || document.getElementById(`${firstField}-upload`);
-        if (targetElement) {
-          targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          targetElement.focus?.();
-        }
-      }
+      const firstFieldKey = Object.keys(newFieldErrors)[0];
+      setTimeout(() => {
+        scrollToField(firstFieldKey);
+      }, 50);
       return;
     }
 
     setFieldErrors({});
-
-    const cleanGoogleMaps = sanitizeUrl(form.google_maps);
 
     const finalSlug = slugify(slug);
     const newCard: BusinessCard = {
@@ -1520,10 +1564,24 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white font-mono text-[10px] uppercase font-bold tracking-widest shadow-xs">
-            <Sparkles className="w-3 h-3 text-amber-400" />
-            {editingSlug ? 'Edit Mode' : 'Live Provisioning'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white font-mono text-[10px] uppercase font-bold tracking-widest shadow-xs">
+              <Sparkles className="w-3 h-3 text-amber-400" />
+              {editingSlug ? 'Edit Mode' : 'Live Provisioning'}
+            </span>
+            <button
+              type="button"
+              onClick={async () => {
+                await signOut();
+                router.push('/login');
+              }}
+              className="p-2 sm:px-3 sm:py-1.5 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-2xl transition-all text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
         </div>
 
         {/* Main Grid: Form Left (7 cols) + Live Preview Right (5 cols) */}
@@ -1549,8 +1607,56 @@ export default function AdminPage() {
               </div>
             )}
 
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-xl text-red-800 text-sm flex items-start gap-2">
+            {/* Interactive Error Summary Box */}
+            {Object.keys(fieldErrors).length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                id="error-summary-banner"
+                className="mb-8 p-5 bg-red-50/90 border-2 border-red-300 rounded-2xl shadow-sm text-red-900 relative overflow-hidden"
+              >
+                <div className="flex items-start gap-3.5">
+                  <div className="p-2.5 bg-red-100/90 rounded-xl text-red-600 shrink-0 mt-0.5 border border-red-200 shadow-2xs">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+                      <h3 className="font-bold text-sm text-red-950 flex items-center gap-2">
+                        <span>Please fix the following {Object.keys(fieldErrors).length} field error{Object.keys(fieldErrors).length > 1 ? 's' : ''}:</span>
+                      </h3>
+                      <span className="text-[10px] font-mono font-bold bg-red-200/80 text-red-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                        Click error to jump to field
+                      </span>
+                    </div>
+                    <p className="text-xs text-red-700/90 mb-3 font-sans leading-relaxed">
+                      We highlighted the exact field(s) causing the issue. Click any button below to immediately scroll and focus on that field:
+                    </p>
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {Object.entries(fieldErrors).map(([fieldKey, msg]) => (
+                        <li key={fieldKey}>
+                          <button
+                            type="button"
+                            onClick={() => scrollToField(fieldKey)}
+                            className="w-full text-left p-2.5 rounded-xl bg-white/95 hover:bg-white border border-red-200 hover:border-red-400 text-xs text-red-900 font-medium transition-all shadow-2xs hover:shadow-xs flex items-center gap-2 cursor-pointer group"
+                          >
+                            <span className="w-2 h-2 rounded-full bg-red-500 group-hover:scale-125 transition-transform shrink-0" />
+                            <div className="truncate min-w-0">
+                              <span className="font-bold capitalize text-red-950 mr-1.5">
+                                {fieldKey.replace(/_/g, ' ')}:
+                              </span>
+                              <span className="text-red-700">{msg}</span>
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {error && Object.keys(fieldErrors).length === 0 && (
+              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-xl text-red-800 text-sm flex items-start gap-2 shadow-2xs">
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
@@ -1662,7 +1768,7 @@ export default function AdminPage() {
                         </div>
                         <div className="h-8 w-full rounded-md overflow-hidden relative border border-slate-200 bg-slate-200">
                           {form.cover_photo_url ? (
-                            <img src={form.cover_photo_url} className="w-full h-full object-cover" alt="Cover" />
+                            <img src={form.cover_photo_url} referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="Cover" />
                           ) : (
                             <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[9px] text-white font-mono">
                               Cover Banner
@@ -2037,7 +2143,7 @@ export default function AdminPage() {
 
                 {/* Cover Photo Upload Pipeline - ONLY FOR DESIGN 3 */}
                 {form.layout === 'design3' && (
-                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-3">
+                  <div id="cover_photo_url-field" className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-3">
                     <div className="flex items-center justify-between">
                       <label className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
                         Header Cover Photo <span className="text-indigo-600">(For Design 3)</span>
@@ -2045,7 +2151,7 @@ export default function AdminPage() {
                     </div>
                     {form.cover_photo_url ? (
                       <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 group">
-                        <img src={form.cover_photo_url} alt="Cover Preview" className="w-full h-32 object-cover" />
+                        <img src={form.cover_photo_url} referrerPolicy="no-referrer" alt="Cover Preview" className="w-full h-32 object-cover" />
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                           <label htmlFor="cover-upload-input" className="px-3 py-1.5 bg-white rounded-xl text-xs font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-all shadow-xs">
                             Change Cover
@@ -3887,11 +3993,30 @@ export default function AdminPage() {
             </>
           )}
 
+              {/* Bottom Error Notification Banner */}
+              {Object.keys(fieldErrors).length > 0 && (
+                <div className="p-3.5 bg-red-50/90 border border-red-300 rounded-2xl text-xs text-red-900 flex items-center justify-between flex-wrap gap-2.5 my-3 shadow-2xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                    <span className="font-medium text-red-950">
+                      Form cannot be saved due to <strong>{Object.keys(fieldErrors).length} error(s)</strong>.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => scrollToField(Object.keys(fieldErrors)[0])}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white rounded-xl font-mono text-[11px] font-bold shrink-0 cursor-pointer transition-all shadow-2xs"
+                  >
+                    Jump to 1st Error ↑
+                  </button>
+                </div>
+              )}
+
               {/* Submit Button */}
               <button
                 type="submit"
                 disabled={!editingSlug && existingSlugs.includes(slug)}
-                className="w-full h-13 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-2xl shadow-sm hover:shadow-md transition-all text-sm tracking-wide mt-4 flex items-center justify-center gap-2 select-none touch-manipulation cursor-pointer active:scale-98"
+                className="w-full h-13 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-2xl shadow-sm hover:shadow-md transition-all text-sm tracking-wide mt-2 flex items-center justify-center gap-2 select-none touch-manipulation cursor-pointer active:scale-98"
               >
                 {editingSlug ? (
                   <>
@@ -4649,7 +4774,7 @@ export default function AdminPage() {
                         </h4>
                         <div className="h-12 w-full rounded-xl overflow-hidden relative border border-slate-200 bg-slate-200 shadow-inner">
                           {form.cover_photo_url ? (
-                            <img src={form.cover_photo_url} className="w-full h-full object-cover" alt="Cover" />
+                            <img src={form.cover_photo_url} referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="Cover" />
                           ) : (
                             <div className="w-full h-full bg-slate-800 flex items-center justify-center text-xs text-white font-mono">
                               Cover Photo

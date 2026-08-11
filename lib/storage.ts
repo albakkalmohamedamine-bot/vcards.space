@@ -318,14 +318,30 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
   
   let { error: dbError } = result;
 
-  if (dbError && (dbError.message?.includes('wifi_password') || dbError.message?.includes('quick_action') || dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
+  // If a column doesn't exist in the database schema, progressively strip ONLY the missing columns that failed
+  if (dbError && (dbError.code === 'PGRST204' || dbError.message?.includes('column'))) {
     const fallbackRow: any = { ...row };
-    delete fallbackRow.wifi_password;
-    delete fallbackRow.wifi_password_label;
-    delete fallbackRow.quick_action_1;
-    delete fallbackRow.quick_action_2;
-    delete fallbackRow.quick_action_3;
-    
+    const errMsg = (dbError.message || '').toLowerCase();
+
+    // Delete quick_action fields ONLY if the error explicitly names quick_action
+    if (errMsg.includes('quick_action')) {
+      delete fallbackRow.quick_action_1;
+      delete fallbackRow.quick_action_2;
+      delete fallbackRow.quick_action_3;
+    }
+
+    // Delete wifi_password ONLY if the error explicitly names wifi_password
+    if (errMsg.includes('wifi_password')) {
+      delete fallbackRow.wifi_password;
+      delete fallbackRow.wifi_password_label;
+    }
+
+    // Delete cover_photo_url ONLY if the error explicitly names cover_photo_url or cover_photo
+    if (errMsg.includes('cover_photo')) {
+      delete fallbackRow.cover_photo_url;
+      delete fallbackRow.cover_photo;
+    }
+
     let retryQuery = supabase.from('business_cards');
     const { error: retryError } = originalSlug 
       ? await retryQuery.update(fallbackRow).eq('slug', originalSlug)
@@ -333,6 +349,33 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
       
     if (!retryError) {
       dbError = null;
+    } else {
+      // Second attempt: if multiple columns are missing, strip only those indicated in retryError
+      const minimalRow = { ...fallbackRow };
+      const retryMsg = (retryError.message || '').toLowerCase();
+      if (retryMsg.includes('quick_action')) {
+        delete minimalRow.quick_action_1;
+        delete minimalRow.quick_action_2;
+        delete minimalRow.quick_action_3;
+      }
+      if (retryMsg.includes('wifi_password')) {
+        delete minimalRow.wifi_password;
+        delete minimalRow.wifi_password_label;
+      }
+      if (retryMsg.includes('cover_photo')) {
+        delete minimalRow.cover_photo_url;
+        delete minimalRow.cover_photo;
+      }
+
+      const { error: minError } = originalSlug
+        ? await supabase.from('business_cards').update(minimalRow).eq('slug', originalSlug)
+        : await supabase.from('business_cards').insert(minimalRow);
+
+      if (!minError) {
+        dbError = null;
+      } else {
+        dbError = minError;
+      }
     }
   }
 

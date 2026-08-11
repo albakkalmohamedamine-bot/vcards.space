@@ -56,6 +56,24 @@ const MotorcycleDeliveryIcon = ({ className = "w-5 h-5" }: { className?: string 
   </svg>
 );
 
+const RestaurantMenuIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {/* Menu Booklet / Folder */}
+    <rect x="3" y="2" width="18" height="20" rx="2.5" ry="2.5" />
+    {/* Book Binding Spine */}
+    <path d="M6.5 2v20" strokeWidth="1.5" />
+    {/* Decorative Header Accent */}
+    <path d="M9.5 5h7" strokeWidth="1.2" strokeOpacity="0.5" />
+    {/* Fork (Left) */}
+    <path d="M10 8v2.5a1 1 0 0 0 2 0V8" />
+    <path d="M11 8v2.5" />
+    <path d="M11 10.5v6.5" />
+    {/* Knife (Right) */}
+    <path d="M16 8v3a1.2 1.2 0 0 1-1.2-1.2V8a1 1 0 0 1 1.2 0z" fill="currentColor" fillOpacity="0.2" />
+    <path d="M16 11v6" />
+  </svg>
+);
+
 const ACTION_OPTIONS = [
   { value: 'website', label: 'Visit Website' },
   { value: 'whatsapp', label: 'WhatsApp Chat' },
@@ -81,6 +99,26 @@ const LANGUAGES: { code: BusinessLanguage; flag: string; label: string }[] = [
   { code: 'nl', flag: '🇳🇱', label: 'Nederlands' },
 ];
 
+function hasValueForAction(card: Partial<BusinessCard>, k: string | undefined): boolean {
+  if (!k) return false;
+  if (k === 'phone') return Boolean(card.phone);
+  if (k === 'landline') return Boolean(card.landline);
+  if (k === 'whatsapp') return Boolean(card.whatsapp);
+  if (k === 'address') return Boolean(card.address || card.google_maps);
+  if (k === 'email') return Boolean(card.email);
+  if (k === 'website') return Boolean(card.website);
+  if (k === 'instagram') return Boolean(card.instagram);
+  if (k === 'facebook') return Boolean(card.facebook);
+  if (k === 'tiktok') return Boolean(card.tiktok);
+  if (k === 'snapchat') return Boolean(card.snapchat);
+  if (k === 'linkedin') return Boolean(card.linkedin);
+  if (k === 'twitter' || k === 'x') return Boolean(card.twitter);
+  if (k === 'youtube') return Boolean(card.youtube);
+  if (k === 'delivery' || k === 'delivery_number') return Boolean(card.delivery_enabled && card.delivery_number);
+  if (k === 'wifi_password') return Boolean(card.wifi_password);
+  return Boolean(card[k as keyof typeof card]);
+}
+
 function Design3CardView({
   card,
   themeColor,
@@ -105,6 +143,20 @@ function Design3CardView({
   cardDefaultLang?: BusinessLanguage;
 }) {
   const [coverLoaded, setCoverLoaded] = useState(false);
+  const [coverError, setCoverError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    if (imgRef.current) {
+      if (imgRef.current.complete) {
+        if (imgRef.current.naturalWidth === 0) {
+          setCoverError(true);
+        } else {
+          setCoverLoaded(true);
+        }
+      }
+    }
+  }, [card.cover_photo_url]);
 
   // Google Maps URL derivation
   const mapUrl = card.address_type === 'text' && card.google_maps
@@ -132,26 +184,7 @@ function Design3CardView({
     (k): k is string => Boolean(k) && k !== 'none'
   );
 
-  const hasValueForAction = (k: string) => {
-    if (k === 'phone') return Boolean(card.phone);
-    if (k === 'landline') return Boolean(card.landline);
-    if (k === 'whatsapp') return Boolean(card.whatsapp);
-    if (k === 'address') return Boolean(card.address || card.google_maps);
-    if (k === 'email') return Boolean(card.email);
-    if (k === 'website') return Boolean(card.website);
-    if (k === 'instagram') return Boolean(card.instagram);
-    if (k === 'facebook') return Boolean(card.facebook);
-    if (k === 'tiktok') return Boolean(card.tiktok);
-    if (k === 'snapchat') return Boolean(card.snapchat);
-    if (k === 'linkedin') return Boolean(card.linkedin);
-    if (k === 'twitter' || k === 'x') return Boolean(card.twitter);
-    if (k === 'youtube') return Boolean(card.youtube);
-    if (k === 'delivery') return Boolean(card.delivery_enabled && card.delivery_number);
-    if (k === 'wifi_password') return Boolean(card.wifi_password);
-    return Boolean(card[k as keyof typeof card]);
-  };
-
-  const activeHeaderCTAKeys = quickActionKeys.filter(k => hasValueForAction(k));
+  const activeHeaderCTAKeys = quickActionKeys.filter(k => hasValueForAction(card, k));
 
   const renderQuickActionButton = (actionKey: string, index: number) => {
     let href = '#';
@@ -271,7 +304,7 @@ function Design3CardView({
       {/* Cover Photo Header - ONLY FOR DESIGN 3 */}
       {card.layout === 'design3' && (
         <div className="relative w-full h-52 sm:h-60 bg-slate-950 overflow-hidden">
-          {card.cover_photo_url ? (
+          {card.cover_photo_url && !coverError ? (
             <>
               {!coverLoaded && (
                 <div className="absolute inset-0 bg-slate-900 animate-pulse flex items-center justify-center">
@@ -279,9 +312,15 @@ function Design3CardView({
                 </div>
               )}
               <img
+                ref={imgRef}
                 src={card.cover_photo_url}
                 alt={card.name}
+                referrerPolicy="no-referrer"
                 onLoad={() => setCoverLoaded(true)}
+                onError={() => {
+                  setCoverLoaded(true);
+                  setCoverError(true);
+                }}
                 className={`w-full h-full object-cover transition-opacity duration-500 ${coverLoaded ? 'opacity-100' : 'opacity-0'}`}
               />
             </>
@@ -336,14 +375,14 @@ function Design3CardView({
           </div>
         </div>
 
-        {/* Business Title in Fraunces */}
-        <h1 className="font-serif text-2xl sm:text-3xl font-extrabold tracking-tight text-white uppercase drop-shadow-md break-words [overflow-wrap:anywhere] max-w-md mx-auto leading-tight">
+        {/* Business Title in Fraunces / Serif with balanced tracking & leading */}
+        <h1 className="font-serif text-2xl sm:text-[28px] font-extrabold tracking-tight sm:tracking-normal text-white uppercase drop-shadow-md break-words [overflow-wrap:anywhere] max-w-md mx-auto leading-snug sm:leading-tight">
           {card.name}
         </h1>
 
-        {/* Tagline in IBM Plex Mono */}
+        {/* Tagline in crisp, legible font-sans */}
         {card.tagline && (
-          <p className="mt-2 text-xs font-mono font-bold tracking-[0.2em] text-white/90 uppercase max-w-sm mx-auto break-words [overflow-wrap:anywhere] leading-relaxed">
+          <p className="mt-2 text-xs sm:text-[13px] font-medium tracking-wide text-white/95 max-w-sm mx-auto break-words [overflow-wrap:anywhere] leading-normal sm:leading-relaxed">
             {card.tagline}
           </p>
         )}
@@ -363,14 +402,14 @@ function Design3CardView({
           <div className="flex items-center justify-between gap-2 mb-5 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <PhoneCall className="w-4 h-4 shrink-0" style={{ color: themeColor }} />
-              <span className="font-mono text-xs font-extrabold tracking-[0.2em] text-slate-500 uppercase">
+              <span className="font-sans text-xs font-bold tracking-[0.15em] text-slate-500 uppercase">
                 {translations.sectionContactDetails}
               </span>
             </div>
             <button
               type="button"
               onClick={handleSaveClick}
-              className="px-3.5 py-2 rounded-full font-mono text-[11px] font-bold text-white flex items-center gap-1.5 shadow-sm hover:brightness-105 active:scale-95 transition-all cursor-pointer min-h-[38px] touch-manipulation shrink-0"
+              className="px-3.5 py-2 rounded-full font-sans text-xs font-bold text-white flex items-center gap-1.5 shadow-sm hover:brightness-105 active:scale-95 transition-all cursor-pointer min-h-[38px] touch-manipulation shrink-0"
               style={{ backgroundColor: themeColor }}
             >
               <span>{translations.saveContactUpper}</span>
@@ -386,12 +425,12 @@ function Design3CardView({
                   <Phone className="w-5 h-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="block font-mono text-[10px] font-extrabold tracking-widest text-slate-400 uppercase">
+                  <span className="block font-sans text-[10px] font-bold tracking-[0.14em] text-slate-400 uppercase">
                     {getLabel(card.mobile_label, 'phone').toUpperCase()}
                   </span>
                   <a
                     href={`tel:${card.phone}`}
-                    className="block font-mono font-bold text-sm text-slate-800 hover:text-indigo-600 truncate mt-0.5"
+                    className="block font-sans font-semibold text-sm text-slate-900 hover:text-indigo-600 transition-colors truncate mt-0.5 tracking-tight"
                   >
                     {card.phone}
                   </a>
@@ -406,12 +445,12 @@ function Design3CardView({
                   <PhoneCall className="w-5 h-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="block font-mono text-[10px] font-extrabold tracking-widest text-slate-400 uppercase">
+                  <span className="block font-sans text-[10px] font-bold tracking-[0.14em] text-slate-400 uppercase">
                     {getLabel(card.landline_label, 'landline').toUpperCase()}
                   </span>
                   <a
                     href={`tel:${card.landline}`}
-                    className="block font-mono font-bold text-sm text-slate-800 hover:text-indigo-600 truncate mt-0.5"
+                    className="block font-sans font-semibold text-sm text-slate-900 hover:text-indigo-600 transition-colors truncate mt-0.5 tracking-tight"
                   >
                     {card.landline}
                   </a>
@@ -426,45 +465,72 @@ function Design3CardView({
                   <Mail className="w-5 h-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="block font-mono text-[10px] font-extrabold tracking-widest text-slate-400 uppercase">
+                  <span className="block font-sans text-[10px] font-bold tracking-[0.14em] text-slate-400 uppercase">
                     {getLabel(card.email_label, 'email').toUpperCase()}
                   </span>
                   <a
                     href={`mailto:${card.email}`}
-                    className="block font-mono font-bold text-sm text-slate-800 hover:text-indigo-600 truncate mt-0.5 break-all"
+                    className="block font-sans font-semibold text-sm text-slate-900 hover:text-indigo-600 transition-colors truncate mt-0.5 break-all"
                   >
                     {card.email}
                   </a>
                 </div>
               </div>
             )}
+
+            {/* Website */}
+            {card.website && (
+              <div className="flex items-center gap-3.5 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-slate-200/60 flex items-center justify-center shrink-0 text-slate-600">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block font-sans text-[10px] font-bold tracking-[0.14em] text-slate-400 uppercase">
+                    {getLabel(card.website_label, 'website').toUpperCase()}
+                  </span>
+                  <a
+                    href={card.website.startsWith('http') ? card.website : `https://${card.website}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block font-sans font-semibold text-sm hover:underline transition-colors truncate mt-0.5"
+                    style={{ color: themeColor }}
+                  >
+                    {card.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Address with View / Open on Map Button at the end of the address text */}
+            {(card.address || card.google_maps) && (
+              <div className="flex items-start gap-3.5 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-slate-200/60 flex items-center justify-center shrink-0 text-slate-600 mt-0.5">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block font-sans text-[10px] font-bold tracking-[0.14em] text-slate-400 uppercase">
+                    {translations.sectionLocation}
+                  </span>
+                  <div className="mt-1 font-sans text-xs sm:text-sm text-slate-800 font-medium leading-relaxed break-words">
+                    {card.address && (
+                      <span className="mr-2 inline">{card.address}</span>
+                    )}
+                    <a
+                      href={mapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-sans text-[11px] font-bold tracking-wide text-white shadow-2xs hover:brightness-110 active:scale-95 transition-all cursor-pointer my-0.5 align-middle"
+                      style={{ backgroundColor: themeColor }}
+                    >
+                      <MapPin className="w-3 h-3 shrink-0" />
+                      <span>{translations.showOnMap}</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Location Card */}
-        {(card.address || card.google_maps) && (
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
-            <div className="flex items-center gap-2 mb-3">
-              <MapPin className="w-4 h-4 shrink-0" style={{ color: themeColor }} />
-              <span className="font-mono text-xs font-extrabold tracking-[0.2em] text-slate-500 uppercase">
-                {translations.sectionLocation}
-              </span>
-            </div>
-            {card.address && (
-              <p className="font-sans text-xs sm:text-sm text-slate-700 font-medium leading-relaxed mb-4 whitespace-pre-line break-words">
-                {card.address}
-              </p>
-            )}
-            <a
-              href={mapUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-mono text-xs font-bold border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-all cursor-pointer min-h-[42px] touch-manipulation shadow-2xs"
-            >
-              {translations.showOnMap}
-            </a>
-          </div>
-        )}
 
         {/* Delivery / WiFi Card */}
         {((card.delivery_enabled && card.delivery_number) || card.wifi_password) && (
@@ -473,7 +539,7 @@ function Design3CardView({
               <button
                 type="button"
                 onClick={() => setShowDeliveryModal(true)}
-                className="w-full py-3.5 px-4 rounded-xl font-mono font-bold text-xs text-white flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-sm hover:brightness-105 min-h-[44px]"
+                className="w-full py-3.5 px-4 rounded-xl font-sans font-bold text-xs tracking-wide text-white flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-sm hover:brightness-105 min-h-[44px]"
                 style={{ backgroundColor: themeColor }}
               >
                 <MotorcycleDeliveryIcon className="w-4 h-4" />
@@ -491,38 +557,17 @@ function Design3CardView({
                     setTimeout(() => setCopiedWifi(false), 2000);
                   }
                 }}
-                className="w-full py-3 px-4 rounded-xl font-mono font-bold text-xs border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 flex items-center justify-between transition-all cursor-pointer min-h-[44px]"
+                className="w-full py-3 px-4 rounded-xl font-sans font-semibold text-xs border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 flex items-center justify-between transition-all cursor-pointer min-h-[44px]"
               >
                 <span className="flex items-center gap-2">
                   <Wifi className="w-4 h-4 text-indigo-600" />
                   <span className="tracking-wider uppercase">{getLabel(card.wifi_password_label, 'wifi')}</span>
                 </span>
-                <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-1 rounded border border-slate-200 font-bold uppercase tracking-wider">
+                <span className="text-[10px] font-sans font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 uppercase tracking-wider">
                   {copiedWifi ? translations.copied : (translations.smallLabels.default || 'Copy')}
                 </span>
               </button>
             )}
-          </div>
-        )}
-
-        {/* Web Links Card */}
-        {card.website && (
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
-            <div className="flex items-center gap-2 mb-3">
-              <Globe className="w-4 h-4 shrink-0" style={{ color: themeColor }} />
-              <span className="font-mono text-xs font-extrabold tracking-[0.2em] text-slate-500 uppercase">
-                {translations.webLinks}
-              </span>
-            </div>
-            <a
-              href={card.website.startsWith('http') ? card.website : `https://${card.website}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block font-mono text-xs font-bold hover:underline break-all uppercase tracking-wider"
-              style={{ color: themeColor }}
-            >
-              {getLabel(card.website_label, 'website')}
-            </a>
           </div>
         )}
 
@@ -545,7 +590,7 @@ function Design3CardView({
 
           return (
             <div className="mt-8 pt-6 border-t border-slate-200/60">
-              <p className="font-mono text-xs sm:text-[13px] font-extrabold tracking-[0.2em] text-slate-500 uppercase mb-6 text-center select-none">
+              <p className="font-sans text-xs font-bold tracking-[0.16em] text-slate-500 uppercase mb-6 text-center select-none">
                 {translations.connectWithUs}
               </p>
 
@@ -573,7 +618,7 @@ function Design3CardView({
                       >
                         {getActionIcon(actionKey, 'w-6 h-6')}
                       </div>
-                      <span className="text-[10px] sm:text-xs font-bold font-mono text-slate-500 tracking-wide mt-2.5 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
+                      <span className="text-[11px] font-bold font-sans text-slate-600 tracking-wide mt-2.5 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
                         {label}
                       </span>
                     </a>
@@ -593,7 +638,7 @@ function Design3CardView({
               rel="noopener noreferrer"
               className="group w-full max-w-[280px] py-4 px-5 bg-transparent flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
             >
-              <span className="text-xs font-bold font-mono tracking-widest text-slate-500 uppercase mb-1">
+              <span className="text-xs font-bold font-sans tracking-[0.16em] text-slate-500 uppercase mb-1">
                 {translations.reviewUs}
               </span>
               {/* 5 Big Golden Stars */}
@@ -826,6 +871,8 @@ export default function CardClient({
           <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
         </svg>
       );
+      case 'menu_pdf':
+      case 'menu': return <RestaurantMenuIcon className={className} />;
       case 'wifi_password': return <Wifi className={className} />;
       default: return <ExternalLink className={className} />;
     }
@@ -883,7 +930,7 @@ export default function CardClient({
         rows.push({
           id: 'menu_pdf',
           label: menuLabel,
-          icon: <FileText className="w-5 h-5" />,
+          icon: <RestaurantMenuIcon className="w-5 h-5" />,
           onClick: () => {
             try {
               const arr = pdfUrl.split(',');
@@ -906,7 +953,7 @@ export default function CardClient({
         rows.push({
           id: 'menu_pdf',
           label: menuLabel,
-          icon: <FileText className="w-5 h-5" />,
+          icon: <RestaurantMenuIcon className="w-5 h-5" />,
           url: pdfUrl,
         });
       }
@@ -1190,7 +1237,10 @@ export default function CardClient({
           transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] }
         } : {})}
         dir={currentLang === 'ar' ? 'rtl' : 'ltr'}
-        className={isPreview ? "w-full bg-white rounded-[28px] overflow-hidden relative border border-slate-100 shadow-xs pb-6 text-left" : "w-full max-w-[440px] sm:max-w-[460px] bg-white sm:rounded-[36px] min-h-screen sm:min-h-0 sm:shadow-2xl overflow-hidden relative border-x sm:border border-slate-200/60 pb-6"}
+        className={isPreview ? `w-full ${layout === 'business' ? '' : 'bg-white'} rounded-[28px] overflow-hidden relative border border-slate-100 shadow-xs pb-6 text-left` : `w-full max-w-[440px] sm:max-w-[460px] ${layout === 'business' ? '' : 'bg-white'} sm:rounded-[36px] min-h-screen sm:min-h-0 sm:shadow-2xl overflow-hidden relative border-x sm:border border-slate-200/60 pb-6`}
+        style={layout === 'business' ? {
+          background: `linear-gradient(180deg, ${themeColor} 0%, #080c14 100%)`
+        } : undefined}
       >
         
         {/* Public Language Switcher Toggle (Compact Dropdown) */}
@@ -1339,7 +1389,7 @@ export default function CardClient({
         {/* Header Cover Area */}
         {layout === 'business' ? (
           <>
-            {/* Profile / Logo Area for Business on White Background */}
+            {/* Profile / Logo Area for Business on Gradient Background */}
             <motion.div 
               initial={{ opacity: 0, scale: 0.82, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1350,11 +1400,12 @@ export default function CardClient({
                 const isCircle = (card.avatar_border_radius ?? 50) >= 45;
                 return (
                   <div 
-                    className="flex items-center justify-center bg-white shadow-md transition-all duration-300 overflow-hidden border-0 w-48 h-48 sm:w-56 sm:h-56"
+                    className="flex items-center justify-center transition-all duration-300 overflow-hidden w-48 h-48 sm:w-56 sm:h-56"
                     style={{ 
-                      backgroundColor: card.logo ? '#FFFFFF' : themeColor,
+                      backgroundColor: card.logo ? 'transparent' : 'rgba(255, 255, 255, 0.1)',
                       borderColor: 'transparent',
-                      borderRadius: isCircle ? '50%' : '22%'
+                      borderRadius: isCircle ? '50%' : '22%',
+                      filter: 'drop-shadow(0px 0px 18px rgba(255, 255, 255, 0.6))'
                     }}
                   >
                     {card.logo ? (
@@ -1364,6 +1415,7 @@ export default function CardClient({
                         loading="eager"
                         decoding="async"
                         className="w-full h-full object-cover p-0" 
+                        style={{ filter: 'drop-shadow(0px 0px 18px rgba(255, 255, 255, 0.6))' }}
                       />
                     ) : (
                       <span className="font-serif font-bold tracking-tight text-white select-none text-6xl sm:text-7xl">
@@ -1382,12 +1434,12 @@ export default function CardClient({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.45, delay: 0.25 }}
               >
-                <h1 className="font-serif text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight break-words [overflow-wrap:anywhere]">
+                <h1 className="font-serif text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight break-words [overflow-wrap:anywhere] drop-shadow-xs">
                   {card.name}
                 </h1>
                 
                 {card.tagline && (
-                  <p className="mt-2 text-xs sm:text-sm font-mono font-bold tracking-[0.18em] text-slate-400 uppercase break-words [overflow-wrap:anywhere]">
+                  <p className="mt-2 text-xs sm:text-sm font-sans font-medium tracking-wide text-white/80 max-w-xs sm:max-w-sm mx-auto leading-normal sm:leading-relaxed break-words [overflow-wrap:anywhere]">
                     {card.tagline}
                   </p>
                 )}
@@ -1407,23 +1459,30 @@ export default function CardClient({
                         rel="noopener noreferrer"
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
-                        whileHover={{ scale: 1.03 }}
-                        whileTap={{ scale: 0.97 }}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="group relative w-full py-4 sm:py-5 px-6 flex flex-col items-center justify-center bg-transparent cursor-pointer transition-all duration-200 gap-2"
+                        className="group relative w-full py-4 sm:py-5 px-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 gap-2 rounded-full shadow-lg"
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                          backdropFilter: 'blur(12px)',
+                          WebkitBackdropFilter: 'blur(12px)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          borderRadius: '9999px',
+                        }}
                       >
-                        <span className="text-xs font-bold font-mono tracking-widest text-slate-500 uppercase mb-1">
+                        <span className="text-xs font-bold font-sans tracking-[0.16em] text-white/90 uppercase mb-0.5">
                           {getCardTranslation(card.language || 'en').reviewUs}
                         </span>
                         {/* 5 Big Golden Stars */}
                         <div className="flex items-center gap-1.5 text-amber-400">
                           {[...Array(5)].map((_, i) => (
-                            <Star key={i} className="w-7 h-7 sm:w-8 sm:h-8 fill-amber-400 text-amber-400 transition-transform group-hover:scale-110 drop-shadow-xs" />
+                            <Star key={i} className="w-6 h-6 sm:w-7 sm:h-7 fill-amber-400 text-amber-400 transition-transform group-hover:scale-110 drop-shadow-xs" />
                           ))}
                         </div>
                         {/* Centered Google Logo on next line */}
                         <div className="flex items-center justify-center pt-0.5">
-                          <GoogleLogo className="h-6 sm:h-7 w-auto transition-transform group-hover:scale-105" />
+                          <GoogleLogo className="h-5 sm:h-6 w-auto transition-transform group-hover:scale-105" />
                         </div>
                       </motion.a>
                     );
@@ -1440,16 +1499,23 @@ export default function CardClient({
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="group relative w-full py-4 sm:py-4.5 px-14 sm:px-16 rounded-2xl sm:rounded-3xl flex items-center justify-center text-white transition-all duration-200 hover:brightness-110 shadow-sm hover:shadow-md hover:shadow-slate-300/40 cursor-pointer border border-white/10 min-h-[58px] sm:min-h-[62px]"
-                        style={{ backgroundColor: themeColor }}
+                        className="group relative w-full py-4 sm:py-4.5 px-12 sm:px-14 rounded-full flex items-center justify-center text-white transition-all duration-200 hover:bg-white/20 shadow-lg cursor-pointer min-h-[58px] sm:min-h-[62px]"
+                        style={{ 
+                          backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                          backdropFilter: 'blur(12px)',
+                          WebkitBackdropFilter: 'blur(12px)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          borderRadius: '9999px',
+                        }}
                       >
-                        <div className="absolute left-3.5 sm:left-4 w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl flex items-center justify-center bg-white/20 backdrop-blur-xs text-white shrink-0 transition-transform duration-200 group-hover:scale-105 [&_svg]:w-5 [&_svg]:h-5 sm:[&_svg]:w-5.5 sm:[&_svg]:h-5.5">
+                        {/* Un-boxed Pure Vector Icon */}
+                        <div className="absolute left-5 sm:left-6 text-white shrink-0 transition-transform duration-200 group-hover:scale-110 [&_svg]:w-5 [&_svg]:h-5 sm:[&_svg]:w-6 sm:[&_svg]:h-6">
                           {row.icon}
                         </div>
-                        <span className="font-bold text-base sm:text-lg text-white tracking-wide text-center truncate">
+                        <span className="font-bold text-base sm:text-lg text-white tracking-wide text-center truncate px-6">
                           {row.label}
                         </span>
-                        <ArrowUpRight className="absolute right-4 sm:right-5 w-5 h-5 text-white/80 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                        <ArrowUpRight className="absolute right-5 sm:right-6 w-5 h-5 text-white/80 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                       </motion.button>
                     );
                   }
@@ -1465,16 +1531,23 @@ export default function CardClient({
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       transition={{ duration: 0.2, ease: "easeOut" }}
-                      className="group relative w-full py-4 sm:py-4.5 px-14 sm:px-16 rounded-2xl sm:rounded-3xl flex items-center justify-center text-white transition-all duration-200 hover:brightness-110 shadow-sm hover:shadow-md hover:shadow-slate-300/40 cursor-pointer border border-white/10 min-h-[58px] sm:min-h-[62px]"
-                      style={{ backgroundColor: themeColor }}
+                      className="group relative w-full py-4 sm:py-4.5 px-12 sm:px-14 rounded-full flex items-center justify-center text-white transition-all duration-200 hover:bg-white/20 shadow-lg cursor-pointer min-h-[58px] sm:min-h-[62px]"
+                      style={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: '9999px',
+                      }}
                     >
-                      <div className="absolute left-3.5 sm:left-4 w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl flex items-center justify-center bg-white/20 backdrop-blur-xs text-white shrink-0 transition-transform duration-200 group-hover:scale-105 [&_svg]:w-5 [&_svg]:h-5 sm:[&_svg]:w-5.5 sm:[&_svg]:h-5.5">
+                      {/* Un-boxed Pure Vector Icon */}
+                      <div className="absolute left-5 sm:left-6 text-white shrink-0 transition-transform duration-200 group-hover:scale-110 [&_svg]:w-5 [&_svg]:h-5 sm:[&_svg]:w-6 sm:[&_svg]:h-6">
                         {row.icon}
                       </div>
-                      <span className="font-bold text-base sm:text-lg text-white tracking-wide text-center truncate">
+                      <span className="font-bold text-base sm:text-lg text-white tracking-wide text-center truncate px-6">
                         {row.label}
                       </span>
-                      <ArrowUpRight className="absolute right-4 sm:right-5 w-5 h-5 text-white/80 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                      <ArrowUpRight className="absolute right-5 sm:right-6 w-5 h-5 text-white/80 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                     </motion.a>
                   );
                 })}
@@ -1489,16 +1562,18 @@ export default function CardClient({
               >
                 <button 
                   type="button"
-                  className="w-full py-2.5 px-4 rounded-xl font-semibold text-xs border flex items-center justify-center gap-1.5 transition-all hover:bg-slate-50 active:scale-[0.98] cursor-pointer shadow-2xs"
+                  className="w-full py-3 px-5 font-bold text-xs text-white border flex items-center justify-center gap-2 transition-all hover:bg-white/20 active:scale-[0.98] cursor-pointer shadow-md"
                   style={{ 
-                    borderColor: themeColor,
-                    color: themeColor,
-                    backgroundColor: `${themeColor}08`
+                    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    borderColor: 'rgba(255, 255, 255, 0.2)',
+                    borderRadius: '9999px',
                   }}
                   onClick={handleSaveClick}
                 >
-                  <UserPlus className="w-3.5 h-3.5 shrink-0" />
-                  <span className="tracking-wide text-xs truncate">{getCardTranslation(card.language || 'en').saveContact}</span>
+                  <UserPlus className="w-4 h-4 shrink-0 text-white" />
+                  <span className="tracking-wide text-xs truncate text-white">{getCardTranslation(card.language || 'en').saveContact}</span>
                 </button>
               </motion.div>
             </div>
@@ -1610,19 +1685,19 @@ export default function CardClient({
               className="pt-6 pb-10 px-8 text-center flex flex-col min-h-[400px]"
             >
               
-              <h1 className="font-serif text-3xl font-extrabold text-slate-900 tracking-tight leading-tight uppercase break-words [overflow-wrap:anywhere]">
+              <h1 className="font-serif text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug sm:leading-tight uppercase break-words [overflow-wrap:anywhere]">
                 {card.name}
               </h1>
               
               {card.tagline && (
-                <p className="mt-2 text-xs font-mono font-bold tracking-[0.2em] text-slate-400 uppercase break-words [overflow-wrap:anywhere] leading-relaxed">
+                <p className="mt-2 text-xs sm:text-sm font-sans font-medium tracking-wide text-slate-500 max-w-xs sm:max-w-sm mx-auto leading-normal sm:leading-relaxed break-words [overflow-wrap:anywhere]">
                   {card.tagline}
                 </p>
               )}
 
               <div className="flex justify-center items-center gap-3 my-5 select-none" aria-hidden="true">
                 <div className="h-[1px] w-8 bg-slate-200/80" />
-                <span className="text-[10px] font-mono tracking-widest text-slate-300">✦</span>
+                <span className="text-[10px] font-sans tracking-widest text-slate-300">✦</span>
                 <div className="h-[1px] w-8 bg-slate-200/80" />
               </div>
 
@@ -1641,7 +1716,7 @@ export default function CardClient({
               )}
 
               <div className="mt-auto space-y-3">
-                {card[card.primary_action] && (
+                {hasValueForAction(card, card.primary_action) && (
                   <a 
                     href={primaryHref}
                     target={['whatsapp', 'website', 'instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube', 'address'].includes(card.primary_action) ? "_blank" : undefined}
@@ -1659,21 +1734,20 @@ export default function CardClient({
 
                 <button 
                   type="button"
-                  className="w-full py-3.5 px-4 rounded-2xl font-bold border-2 flex items-center justify-center gap-2 transition-all hover:bg-slate-50 active:scale-[0.98] cursor-pointer"
+                  className="w-full py-4 px-6 rounded-2xl font-bold text-white flex items-center justify-center gap-3 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98] cursor-pointer"
                   style={{ 
-                    borderColor: themeColor,
-                    color: themeColor,
-                    backgroundColor: `${themeColor}05`
+                    backgroundColor: themeColor,
+                    boxShadow: `0 8px 24px -6px ${themeColor}50`
                   }}
                   onClick={handleSaveClick}
                 >
-                  <UserPlus className="w-4 h-4 shrink-0" />
-                  <span className="tracking-wide text-xs sm:text-sm truncate">{translations.saveContact}</span>
+                  <UserPlus className="w-5 h-5 shrink-0 text-white" />
+                  <span className="tracking-wide text-sm truncate">{translations.saveContact}</span>
                 </button>
               </div>
 
               <div className="mt-10 border-t border-slate-100 pt-8">
-                <p className="text-sm sm:text-[15px] font-extrabold font-mono tracking-[0.2em] text-slate-600 uppercase mb-8 select-none text-center">
+                <p className="text-xs sm:text-sm font-bold font-sans tracking-[0.16em] text-slate-500 uppercase mb-6 select-none text-center">
                   {translations.connectWithUs}
                 </p>
                 
@@ -1681,10 +1755,10 @@ export default function CardClient({
                   {(() => {
                     const secondaryActions = ['phone', 'landline', 'whatsapp', 'email', 'address', 'website', 'instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube', 'wifi_password', 'delivery_number']
                       .filter(k => {
-                        if (k === 'delivery_number') {
-                          return card.delivery_enabled && Boolean(card.delivery_number);
+                        if (k === card.primary_action && hasValueForAction(card, card.primary_action)) {
+                          return false;
                         }
-                        return k !== card.primary_action && Boolean(card[k as keyof typeof card]);
+                        return hasValueForAction(card, k);
                       });
 
                     if (secondaryActions.length > 0) {
@@ -1792,7 +1866,7 @@ export default function CardClient({
                       rel="noopener noreferrer"
                       className="group w-full max-w-[280px] py-4 px-5 bg-transparent flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
                     >
-                      <span className="text-xs font-bold font-mono tracking-widest text-slate-500 uppercase mb-1">
+                      <span className="text-xs font-bold font-sans tracking-[0.16em] text-slate-500 uppercase mb-1">
                         {translations.reviewUs}
                       </span>
                       {/* 5 Big Golden Stars */}
@@ -2073,14 +2147,14 @@ export default function CardClient({
               </p>
 
               <div className="w-full bg-slate-50 rounded-2xl p-3.5 mb-5 border border-slate-100 flex flex-col items-center gap-1">
-                <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-slate-400">
+                <span className="text-[10px] font-sans font-bold tracking-[0.14em] uppercase text-slate-400">
                   {translations.deliveryModal.contactNameLabel}
                 </span>
                 <span className="font-bold text-sm text-slate-800 break-all">
                   {card.name} / {getLocalizedRowLabel(card.delivery_label, 'delivery', currentLang)}
                 </span>
                 {card.delivery_number && (
-                  <span className="text-xs font-mono font-semibold text-slate-500 mt-0.5">
+                  <span className="text-xs font-sans font-semibold text-slate-600 mt-0.5 tracking-tight">
                     📞 {card.delivery_number}
                   </span>
                 )}

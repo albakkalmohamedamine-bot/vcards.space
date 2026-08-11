@@ -56,60 +56,28 @@ export default function Home() {
   useEffect(() => {
     let isMounted = true;
 
-    getSession().then((session) => {
-      if (!isMounted) return;
-
+    async function checkAuthAndLoad() {
+      const session = await getSession();
       if (!session) {
-        setIsLoggedIn(false);
         router.replace('/login');
         return;
       }
 
+      if (!isMounted) return;
       setIsLoggedIn(true);
 
-      getCards().then((clientCards) => {
-        if (!isMounted) return;
-        setCards(clientCards);
-        setLoading(false);
-      });
-    });
+      const clientCards = await getCards();
+      if (!isMounted) return;
+      setCards(clientCards);
+      setLoading(false);
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (isMounted) {
-        if (!session) {
-          const currentSession = await getSession();
-          if (!currentSession) {
-            setIsLoggedIn(false);
-            router.replace('/login');
-          } else {
-            setIsLoggedIn(true);
-          }
-        } else {
-          setIsLoggedIn(true);
-        }
-      }
-    });
+    checkAuthAndLoad();
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
     };
   }, [router]);
-
-  const handleAuthAction = () => {
-    if (isLoggedIn) {
-      setShowLogoutConfirm(true);
-    } else {
-      router.push('/login');
-    }
-  };
-
-  const confirmLogout = async () => {
-    await signOut();
-    setIsLoggedIn(false);
-    setShowLogoutConfirm(false);
-    router.replace('/login');
-  };
 
   const handleCopyLink = (slug: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -149,28 +117,27 @@ export default function Home() {
 
   return (
     <main id="main-landing" className="min-h-screen bg-slate-50 py-12 px-4 md:px-8 font-sans text-slate-800 relative">
-      {/* Top right auth button */}
-      <div className="absolute top-4 right-4 md:top-8 md:right-8">
-        <button
-          onClick={handleAuthAction}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-full text-slate-600 hover:text-slate-900 shadow-sm transition-all text-xs font-bold font-mono tracking-wider cursor-pointer"
-        >
-          {isLoggedIn ? (
-            <>
-              <LogOut className="w-4 h-4" />
-              <span>LOGOUT</span>
-            </>
-          ) : (
-            <>
-              <LogIn className="w-4 h-4" />
-              <span>ADMIN LOGIN</span>
-            </>
-          )}
-        </button>
-      </div>
-
       <div className="max-w-5xl mx-auto">
         
+        {/* Top Navigation Bar */}
+        <div className="flex items-center justify-between mb-10 pb-4 border-b border-slate-200/80">
+          <div className="flex items-center gap-2.5">
+            <img src="/logo-navy.svg" alt="VCARDS SPACE" className="h-7 w-auto" />
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">Admin Console</span>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              await signOut();
+              router.push('/login');
+            }}
+            className="flex items-center gap-2 px-3.5 py-1.5 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-xl text-xs font-mono font-bold transition-all shadow-2xs cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Logout</span>
+          </button>
+        </div>
+
         {/* Hero Branding Section */}
         <div className="text-center max-w-2xl mx-auto mb-16 pt-8 md:pt-0 flex flex-col items-center">
           <motion.div
@@ -432,52 +399,6 @@ export default function Home() {
         </div>
 
       </div>
-
-      {/* Logout Confirmation Modal */}
-      <AnimatePresence>
-        {showLogoutConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => setShowLogoutConfirm(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 10 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className="bg-white rounded-[32px] shadow-2xl p-6 sm:p-8 w-full max-w-sm border border-slate-100"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center mb-5 mx-auto">
-                <LogOut className="w-6 h-6" />
-              </div>
-              <h3 className="font-serif text-2xl font-bold text-center text-slate-900 mb-2">
-                Sign Out?
-              </h3>
-              <p className="text-sm text-center text-slate-500 mb-8 px-4 font-sans leading-relaxed">
-                You will need to re-enter your credentials to access the admin portal again.
-              </p>
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={confirmLogout}
-                  className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-bold text-sm shadow-md shadow-red-600/20 transition-all active:scale-[0.98] cursor-pointer"
-                >
-                  Yes, Sign out
-                </button>
-                <button
-                  onClick={() => setShowLogoutConfirm(false)}
-                  className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] cursor-pointer"
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </main>
   );
 }
