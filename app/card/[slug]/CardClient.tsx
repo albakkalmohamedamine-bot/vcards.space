@@ -115,7 +115,7 @@ function hasValueForAction(card: Partial<BusinessCard>, k: string | undefined): 
   if (k === 'twitter' || k === 'x') return Boolean(card.twitter);
   if (k === 'youtube') return Boolean(card.youtube);
   if (k === 'delivery' || k === 'delivery_number') return Boolean(card.delivery_enabled && card.delivery_number);
-  if (k === 'wifi_password') return Boolean(card.wifi_password);
+  if (k === 'wifi_password') return (card.layout === 'business' || !card.layout) && Boolean(card.wifi_password);
   return Boolean(card[k as keyof typeof card]);
 }
 
@@ -532,42 +532,18 @@ function Design3CardView({
           </div>
         </div>
 
-        {/* Delivery / WiFi Card */}
-        {((card.delivery_enabled && card.delivery_number) || card.wifi_password) && (
+        {/* Delivery Card */}
+        {card.delivery_enabled && card.delivery_number && (
           <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200/80 space-y-2.5">
-            {card.delivery_enabled && card.delivery_number && (
-              <button
-                type="button"
-                onClick={() => setShowDeliveryModal(true)}
-                className="w-full py-3.5 px-4 rounded-xl font-sans font-bold text-xs tracking-wide text-white flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-sm hover:brightness-105 min-h-[44px]"
-                style={{ backgroundColor: themeColor }}
-              >
-                <MotorcycleDeliveryIcon className="w-4 h-4" />
-                <span className="tracking-wider uppercase">{getLabel(card.delivery_label, 'delivery')}</span>
-              </button>
-            )}
-
-            {card.wifi_password && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                    navigator.clipboard.writeText(card.wifi_password || '');
-                    setCopiedWifi(true);
-                    setTimeout(() => setCopiedWifi(false), 2000);
-                  }
-                }}
-                className="w-full py-3 px-4 rounded-xl font-sans font-semibold text-xs border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 flex items-center justify-between transition-all cursor-pointer min-h-[44px]"
-              >
-                <span className="flex items-center gap-2">
-                  <Wifi className="w-4 h-4 text-indigo-600" />
-                  <span className="tracking-wider uppercase">{getLabel(card.wifi_password_label, 'wifi')}</span>
-                </span>
-                <span className="text-[10px] font-sans font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 uppercase tracking-wider">
-                  {copiedWifi ? translations.copied : (translations.smallLabels.default || 'Copy')}
-                </span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowDeliveryModal(true)}
+              className="w-full py-3.5 px-4 rounded-xl font-sans font-bold text-xs tracking-wide text-white flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-sm hover:brightness-105 min-h-[44px]"
+              style={{ backgroundColor: themeColor }}
+            >
+              <MotorcycleDeliveryIcon className="w-4 h-4" />
+              <span className="tracking-wider uppercase">{getLabel(card.delivery_label, 'delivery')}</span>
+            </button>
           </div>
         )}
 
@@ -1753,7 +1729,7 @@ export default function CardClient({
                 
                 <div className="grid grid-cols-3 gap-y-7 gap-x-2 justify-items-center max-w-[320px] mx-auto">
                   {(() => {
-                    const secondaryActions = ['phone', 'landline', 'whatsapp', 'email', 'address', 'website', 'instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube', 'wifi_password', 'delivery_number']
+                    const secondaryActions = ['phone', 'landline', 'whatsapp', 'email', 'address', 'website', 'instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube', 'delivery_number']
                       .filter(k => {
                         if (k === card.primary_action && hasValueForAction(card, card.primary_action)) {
                           return false;
@@ -1783,41 +1759,6 @@ export default function CardClient({
                               </div>
                               <span className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-wide mt-2.5 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
                                 {card.delivery_label || 'Delivery'}
-                              </span>
-                            </button>
-                          );
-                        }
-
-                        if (actionKey === 'wifi_password') {
-                          return (
-                            <button
-                              key={actionKey}
-                              type="button"
-                              onClick={async () => {
-                                if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                                  try {
-                                    await navigator.clipboard.writeText(card.wifi_password || '');
-                                  } catch (err) {
-                                    console.error('Failed to copy WiFi password:', err);
-                                  }
-                                }
-                                setCopiedWifi(true);
-                                setTimeout(() => setCopiedWifi(false), 2000);
-                              }}
-                              className="group flex flex-col items-center w-20 cursor-pointer"
-                            >
-                              <div 
-                                className="w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all group-hover:-translate-y-1 group-hover:shadow-md"
-                                style={{ 
-                                  backgroundColor: `${themeColor}08`,
-                                  borderColor: `${themeColor}15`,
-                                  color: themeColor
-                                }}
-                              >
-                                {copiedWifi ? <Check className="w-6 h-6" /> : <Wifi className="w-6 h-6" />}
-                              </div>
-                              <span className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-wide mt-2.5 uppercase transition-colors group-hover:text-slate-900 text-center truncate w-full">
-                                {copiedWifi ? 'Copied!' : (card.wifi_password_label || 'WiFi')}
                               </span>
                             </button>
                           );

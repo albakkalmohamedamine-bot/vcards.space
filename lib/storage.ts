@@ -34,7 +34,7 @@ function mapRowToCard(row: any): BusinessCard {
     menu_pdf_name: row.menu_pdf_name || '',
     menu_label: row.menu_label || 'Our Menu',
     wifi_password: row.wifi_password || '',
-    wifi_password_label: row.wifi_password_label || 'WiFi Password',
+    wifi_password_label: row.wifi_label || row.wifi_password_label || 'WiFi Password',
     instagram_label: row.instagram_label || 'Instagram',
     facebook_label: row.facebook_label || 'Facebook',
     tiktok_label: row.tiktok_label || 'TikTok',
@@ -95,7 +95,7 @@ function mapCardToRow(card: BusinessCard) {
     menu_pdf_name: card.menu_pdf_name || null,
     menu_label: card.menu_label || 'Our Menu',
     wifi_password: card.wifi_password || '',
-    wifi_password_label: card.wifi_password_label || null,
+    wifi_label: card.wifi_password_label || (card as any).wifi_label || null,
     instagram_label: card.instagram_label || null,
     facebook_label: card.facebook_label || null,
     tiktok_label: card.tiktok_label || null,
@@ -330,10 +330,10 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
       delete fallbackRow.quick_action_3;
     }
 
-    // Delete wifi_password ONLY if the error explicitly names wifi_password
-    if (errMsg.includes('wifi_password')) {
+    // Delete wifi_password ONLY if the error explicitly names wifi_password or wifi_label
+    if (errMsg.includes('wifi_password') || errMsg.includes('wifi_label')) {
       delete fallbackRow.wifi_password;
-      delete fallbackRow.wifi_password_label;
+      delete fallbackRow.wifi_label;
     }
 
     // Delete cover_photo_url ONLY if the error explicitly names cover_photo_url or cover_photo
@@ -358,9 +358,9 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
         delete minimalRow.quick_action_2;
         delete minimalRow.quick_action_3;
       }
-      if (retryMsg.includes('wifi_password')) {
+      if (retryMsg.includes('wifi_password') || retryMsg.includes('wifi_label')) {
         delete minimalRow.wifi_password;
-        delete minimalRow.wifi_password_label;
+        delete minimalRow.wifi_label;
       }
       if (retryMsg.includes('cover_photo')) {
         delete minimalRow.cover_photo_url;

@@ -3801,7 +3801,6 @@ export default function AdminPage() {
                         <option value="landline">Office Line</option>
                         <option value="website">Website</option>
                         <option value="delivery">Delivery</option>
-                        <option value="wifi_password">WiFi Password</option>
                       </select>
                     </div>
 
@@ -3831,7 +3830,6 @@ export default function AdminPage() {
                         <option value="landline">Office Line</option>
                         <option value="website">Website</option>
                         <option value="delivery">Delivery</option>
-                        <option value="wifi_password">WiFi Password</option>
                       </select>
                     </div>
 
@@ -3861,7 +3859,6 @@ export default function AdminPage() {
                         <option value="landline">Office Line</option>
                         <option value="website">Website</option>
                         <option value="delivery">Delivery</option>
-                        <option value="wifi_password">WiFi Password</option>
                       </select>
                     </div>
                   </div>
@@ -3886,7 +3883,6 @@ export default function AdminPage() {
                         { id: 'email', label: 'Email' },
                         { id: 'website', label: 'Website' },
                         { id: 'delivery', label: 'Delivery' },
-                        { id: 'wifi_password', label: 'WiFi' },
                       ].map(chip => {
                         const slot1 = form.quick_action_1 === '' ? 'phone' : form.quick_action_1;
                         const slot2 = form.quick_action_2 === '' ? 'whatsapp' : form.quick_action_2;
