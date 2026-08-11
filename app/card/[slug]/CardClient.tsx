@@ -1249,7 +1249,7 @@ export default function CardClient({
           return (
             <div 
               ref={langDropdownRef}
-              className="absolute top-3.5 left-3.5 sm:top-4 sm:left-4 z-40"
+              className="absolute top-3.5 left-3.5 sm:top-4 sm:left-4 z-[60]"
               dir="ltr"
             >
               <button
@@ -1275,7 +1275,7 @@ export default function CardClient({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -6, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute top-full left-0 mt-1.5 w-36 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200/80 p-1.5 z-50 text-slate-800 font-sans"
+                    className="absolute top-full left-0 mt-1.5 w-36 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200/80 p-1.5 z-[70] text-slate-800 font-sans"
                   >
                     {LANGUAGES.map((l) => {
                       const isActive = currentLang === l.code;
@@ -1715,34 +1715,34 @@ export default function CardClient({
                 )
               )}
 
-              <div className="mt-auto space-y-3">
+              <div className="mt-auto flex items-center gap-2.5 sm:gap-3 w-full">
                 {hasValueForAction(card, card.primary_action) && (
                   <a 
                     href={primaryHref}
                     target={['whatsapp', 'website', 'instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube', 'address'].includes(card.primary_action) ? "_blank" : undefined}
                     rel="noopener noreferrer"
-                    className="w-full py-4 px-6 rounded-2xl font-bold text-white flex items-center justify-center gap-3 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
+                    className="flex-1 min-w-0 py-3.5 px-3 sm:px-4 rounded-full font-bold text-white flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
                     style={{ 
                       backgroundColor: themeColor,
-                      boxShadow: `0 8px 24px -6px ${themeColor}50`
+                      boxShadow: `0 8px 20px -6px ${themeColor}50`
                     }}
                   >
-                    {getActionIcon(card.primary_action, 'w-5 h-5')}
-                    <span className="tracking-wide text-sm">{primaryLabel}</span>
+                    {getActionIcon(card.primary_action, 'w-4 h-4 sm:w-5 sm:h-5 shrink-0')}
+                    <span className="tracking-wide text-xs sm:text-sm truncate">{primaryLabel}</span>
                   </a>
                 )}
 
                 <button 
                   type="button"
-                  className="w-full py-4 px-6 rounded-2xl font-bold text-white flex items-center justify-center gap-3 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98] cursor-pointer"
+                  className="flex-1 min-w-0 py-3.5 px-3 sm:px-4 rounded-full font-bold text-white flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98] cursor-pointer"
                   style={{ 
                     backgroundColor: themeColor,
-                    boxShadow: `0 8px 24px -6px ${themeColor}50`
+                    boxShadow: `0 8px 20px -6px ${themeColor}50`
                   }}
                   onClick={handleSaveClick}
                 >
-                  <UserPlus className="w-5 h-5 shrink-0 text-white" />
-                  <span className="tracking-wide text-sm truncate">{translations.saveContact}</span>
+                  <UserPlus className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-white" />
+                  <span className="tracking-wide text-xs sm:text-sm truncate">{translations.saveContact}</span>
                 </button>
               </div>
 
