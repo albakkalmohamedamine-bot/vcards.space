@@ -951,6 +951,11 @@ export default function AdminPage() {
     colorScheme: { bg: string; border: string; text: string; buttonBg: string; buttonText: string; buttonBorder: string },
     subLabelKey?: keyof typeof form
   ) => {
+    // Multi-links and sub-buttons are exclusively available for Business card layouts
+    if (form.layout !== 'business') {
+      return null;
+    }
+
     const extraLinks = (form.multi_links && form.multi_links[channelKey]) || [];
     const hasExtras = extraLinks.length > 0;
     
