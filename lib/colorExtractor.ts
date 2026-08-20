@@ -12,6 +12,11 @@ export interface ExtractedColors {
   muted: ColorSwatch | null;
   darkMuted: ColorSwatch | null;
   lightMuted: ColorSwatch | null;
+  dominant?: ColorSwatch | null;
+  secondary?: ColorSwatch | null;
+  accent?: ColorSwatch | null;
+  deep?: ColorSwatch | null;
+  allSwatches: ColorSwatch[];
 }
 
 // Convert RGB to HSL
@@ -50,8 +55,12 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
 
 // Convert HSL to Hex
 function hslToHex(h: number, s: number, l: number): string {
-  l /= 100;
-  const a = (s * Math.min(l, 1 - l)) / 100;
+  // Normalize parameters
+  h = ((h % 360) + 360) % 360;
+  s = Math.max(0, Math.min(1, s));
+  l = Math.max(0, Math.min(1, l));
+
+  const a = s * Math.min(l, 1 - l);
   const f = (n: number) => {
     const k = (n + h / 30) % 12;
     const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
@@ -62,12 +71,12 @@ function hslToHex(h: number, s: number, l: number): string {
 
 function rgbToHex(r: number, g: number, b: number): string {
   return '#' + [r, g, b].map(x => {
-    const hex = x.toString(16);
+    const hex = Math.max(0, Math.min(255, Math.round(x))).toString(16);
     return hex.length === 1 ? '0' + hex : hex;
   }).join('').toUpperCase();
 }
 
-// Calculate perceived brightness/luminance
+// Calculate perceived luminance for contrast verification
 function getLuminance(r: number, g: number, b: number): number {
   const a = [r, g, b].map((v) => {
     v /= 255;
@@ -76,9 +85,55 @@ function getLuminance(r: number, g: number, b: number): number {
   return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
 }
 
-// Extract colors from a base64 image string or URL
+// Perceptual color distance metric
+function colorDistance(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
+  const rmean = (r1 + r2) / 2;
+  const dr = r1 - r2;
+  const dg = g1 - g2;
+  const db = b1 - b2;
+  return Math.sqrt((((512 + rmean) * dr * dr) >> 8) + 4 * dg * dg + (((767 - rmean) * db * db) >> 8));
+}
+
+// Generate descriptive, human-friendly brand names based on HSL properties
+function getDescriptiveColorName(h: number, s: number, l: number, rankIndex = 0): string {
+  if (s < 0.08) {
+    if (l < 0.2) return 'Midnight Black';
+    if (l < 0.4) return 'Charcoal';
+    if (l < 0.7) return 'Slate Gray';
+    return 'Pearl Gray';
+  }
+
+  let hueName = '';
+  if (h >= 345 || h < 12) hueName = 'Ruby Red';
+  else if (h >= 12 && h < 38) {
+    hueName = l < 0.4 ? 'Rich Bronze' : s > 0.6 ? 'Vibrant Orange' : 'Warm Amber';
+  } else if (h >= 38 && h < 68) {
+    hueName = l < 0.45 ? 'Antique Gold' : 'Golden Yellow';
+  } else if (h >= 68 && h < 160) {
+    hueName = l < 0.35 ? 'Deep Forest' : s > 0.6 ? 'Emerald Green' : 'Sage Green';
+  } else if (h >= 160 && h < 195) {
+    hueName = l < 0.35 ? 'Dark Teal' : 'Cyan Aqua';
+  } else if (h >= 195 && h < 250) {
+    hueName = l < 0.28 ? 'Royal Navy' : s > 0.6 ? 'Cobalt Blue' : 'Classic Blue';
+  } else if (h >= 250 && h < 290) {
+    hueName = l < 0.35 ? 'Deep Indigo' : 'Violet Purple';
+  } else if (h >= 290 && h < 345) {
+    hueName = l < 0.4 ? 'Plum Wine' : 'Magenta Rose';
+  }
+
+  if (rankIndex === 0) return `Primary ${hueName || 'Brand'}`;
+  if (rankIndex === 1) return `Secondary ${hueName || 'Accent'}`;
+  return hueName || `Accent ${rankIndex + 1}`;
+}
+
+// Extract comprehensive palette from logo image
 export function extractColorsFromImage(imageSrc: string): Promise<ExtractedColors> {
   return new Promise((resolve) => {
+    if (!imageSrc) {
+      resolve(getFallbackColors());
+      return;
+    }
+
     const img = new Image();
     img.crossOrigin = 'Anonymous';
     img.onload = () => {
@@ -90,115 +145,193 @@ export function extractColorsFromImage(imageSrc: string): Promise<ExtractedColor
           return;
         }
 
-        // Scale down to analyze quickly
-        const size = 50;
+        // 120x120 provides high fidelity while executing in <5ms
+        const size = 120;
         canvas.width = size;
         canvas.height = size;
         ctx.drawImage(img, 0, 0, size, size);
 
         const imgData = ctx.getImageData(0, 0, size, size).data;
-        const colorCount: Record<string, { r: number; g: number; b: number; count: number }> = {};
+        interface PixelCluster {
+          r: number;
+          g: number;
+          b: number;
+          count: number;
+          s: number;
+          l: number;
+          h: number;
+        }
 
-        // Collect unique colors
-        for (let i = 0; i < imgData.length; i += 16) { // step by 4 pixels (16 values) to speed up
+        const rawPixels: Array<{ r: number; g: number; b: number; s: number; l: number; h: number }> = [];
+
+        // Sample pixels, ignoring transparent or near-empty areas
+        for (let i = 0; i < imgData.length; i += 4) {
           const r = imgData[i];
           const g = imgData[i + 1];
           const b = imgData[i + 2];
           const a = imgData[i + 3];
 
-          // Skip transparent or highly white/black background pixels if any
-          if (a < 200) continue;
-          const brightness = (r + g + b) / 3;
-          if (brightness > 245 || brightness < 10) continue;
+          // Skip transparent or near-transparent pixels
+          if (a < 150) continue;
 
-          // Round to prevent too many unique colors
-          const factor = 10;
-          const rRound = Math.round(r / factor) * factor;
-          const gRound = Math.round(g / factor) * factor;
-          const bRound = Math.round(b / factor) * factor;
-          const key = `${rRound},${gRound},${bRound}`;
+          const [h, s, l] = rgbToHsl(r, g, b);
 
-          if (colorCount[key]) {
-            colorCount[key].count++;
-          } else {
-            colorCount[key] = { r, g, b, count: 1 };
-          }
+          // Skip pure flat white canvas backgrounds (l > 0.96 with low saturation)
+          if (l > 0.96 && s < 0.15) continue;
+          // Skip pure black edges if saturation is 0 and lightness < 0.04
+          if (l < 0.04 && s < 0.1) continue;
+
+          rawPixels.push({ r, g, b, h, s, l });
         }
 
-        const colors = Object.values(colorCount).sort((a, b) => b.count - a.count);
-
-        if (colors.length === 0) {
+        if (rawPixels.length === 0) {
           resolve(getFallbackColors());
           return;
         }
 
-        // Map colors to their HSL values
-        const mappedColors = colors.map(c => {
-          const hsl = rgbToHsl(c.r, c.g, c.b);
-          const hex = rgbToHex(c.r, c.g, c.b);
-          const luminance = getLuminance(c.r, c.g, c.b);
-          return {
-            hex,
-            hsl,
-            isDark: luminance < 0.5,
-            weight: c.count
-          };
-        });
+        // Cluster colors using perceptual distance threshold
+        const clusters: PixelCluster[] = [];
+        const DISTANCE_THRESHOLD = 32; // Perceptual grouping radius
 
-        // Let's find the best candidate for each target
-        const findBestMatch = (
-          targetSat: number, minSat: number, maxSat: number,
-          targetLit: number, minLit: number, maxLit: number
-        ) => {
-          let bestCandidate: typeof mappedColors[0] | null = null;
-          let bestScore = -1;
-
-          for (const c of mappedColors) {
-            const [, s, l] = c.hsl;
-            if (s >= minSat && s <= maxSat && l >= minLit && l <= maxLit) {
-              // Score based on distance to target Saturation, Lightness, and the color weight/frequency
-              const satDiff = Math.abs(s - targetSat);
-              const litDiff = Math.abs(l - targetLit);
-              const score = (1 - satDiff) * 3 + (1 - litDiff) * 3 + (c.weight / colors[0].count) * 4;
-              if (score > bestScore) {
-                bestScore = score;
-                bestCandidate = c;
-              }
+        for (const p of rawPixels) {
+          let matched = false;
+          for (const c of clusters) {
+            const dist = colorDistance(p.r, p.g, p.b, c.r, c.g, c.b);
+            if (dist < DISTANCE_THRESHOLD) {
+              // Update running average
+              c.r = (c.r * c.count + p.r) / (c.count + 1);
+              c.g = (c.g * c.count + p.g) / (c.count + 1);
+              c.b = (c.b * c.count + p.b) / (c.count + 1);
+              c.count++;
+              matched = true;
+              break;
             }
           }
-          return bestCandidate;
-        };
 
-        // Vibrant: high sat, normal lightness
-        const vibrantMatch = findBestMatch(0.8, 0.4, 1.0, 0.5, 0.35, 0.65);
-        // Dark Vibrant: high sat, low lightness
-        const darkVibrantMatch = findBestMatch(0.8, 0.4, 1.0, 0.25, 0.1, 0.35);
-        // Light Vibrant: high sat, high lightness
-        const lightVibrantMatch = findBestMatch(0.8, 0.4, 1.0, 0.75, 0.65, 0.9);
-        // Muted: low sat, normal lightness
-        const mutedMatch = findBestMatch(0.25, 0.05, 0.4, 0.5, 0.35, 0.65);
-        // Dark Muted: low sat, low lightness
-        const darkMutedMatch = findBestMatch(0.25, 0.05, 0.4, 0.25, 0.1, 0.35);
-        // Light Muted: low sat, high lightness
-        const lightMutedMatch = findBestMatch(0.25, 0.05, 0.4, 0.75, 0.65, 0.9);
+          if (!matched) {
+            clusters.push({
+              r: p.r,
+              g: p.g,
+              b: p.b,
+              count: 1,
+              h: p.h,
+              s: p.s,
+              l: p.l,
+            });
+          }
+        }
 
-        const formatSwatch = (match: typeof mappedColors[0] | null, name: string): ColorSwatch | null => {
-          if (!match) return null;
-          return {
+        // Recompute accurate HSL and weights for each cluster
+        clusters.forEach(c => {
+          c.r = Math.round(c.r);
+          c.g = Math.round(c.g);
+          c.b = Math.round(c.b);
+          const [h, s, l] = rgbToHsl(c.r, c.g, c.b);
+          c.h = h;
+          c.s = s;
+          c.l = l;
+        });
+
+        // Filter out low-frequency noise clusters (< 0.8% of pixels)
+        const totalValidPixels = rawPixels.length;
+        const validClusters = clusters
+          .filter(c => c.count / totalValidPixels >= 0.008)
+          .sort((a, b) => b.count - a.count);
+
+        if (validClusters.length === 0) {
+          resolve(getFallbackColors());
+          return;
+        }
+
+        // Separate chromatic clusters from neutral grayscale
+        const chromatic = validClusters.filter(c => c.s >= 0.12 && c.l >= 0.08 && c.l <= 0.92);
+        const neutral = validClusters.filter(c => c.s < 0.12);
+
+        const swatchesList: ColorSwatch[] = [];
+        const seenHexes = new Set<string>();
+
+        const addSwatch = (hex: string, name: string, isDark?: boolean) => {
+          const cleanHex = hex.toUpperCase();
+          if (seenHexes.has(cleanHex)) return;
+          seenHexes.add(cleanHex);
+
+          const r = parseInt(cleanHex.slice(1, 3), 16);
+          const g = parseInt(cleanHex.slice(3, 5), 16);
+          const b = parseInt(cleanHex.slice(5, 7), 16);
+          const hsl = rgbToHsl(r, g, b);
+          const dark = isDark !== undefined ? isDark : getLuminance(r, g, b) < 0.45;
+
+          swatchesList.push({
             name,
-            hex: match.hex,
-            hsl: match.hsl,
-            isDark: match.isDark
-          };
+            hex: cleanHex,
+            hsl,
+            isDark: dark,
+          });
         };
+
+        // 1. Add top chromatic clusters found directly in the logo
+        chromatic.forEach((c, idx) => {
+          const hex = rgbToHex(c.r, c.g, c.b);
+          const label = getDescriptiveColorName(c.h, c.s, c.l, idx);
+          addSwatch(hex, label);
+        });
+
+        // 2. Add prominent neutral cluster if present (e.g. Midnight Black, Charcoal, Slate)
+        neutral.slice(0, 2).forEach((c, idx) => {
+          const hex = rgbToHex(c.r, c.g, c.b);
+          const label = c.l < 0.25 ? 'Deep Charcoal' : c.l < 0.5 ? 'Slate' : 'Silver Accent';
+          addSwatch(hex, label);
+        });
+
+        // 3. Derive rich complementary and tailored brand harmonies from the primary logo color
+        const primaryCandidate = chromatic[0] || validClusters[0];
+        if (primaryCandidate) {
+          const [pH, pS, pL] = [primaryCandidate.h, primaryCandidate.s, primaryCandidate.l];
+
+          // A. Deep Theme Accent (Rich, professional dark variant for headers)
+          const deepHex = hslToHex(pH, Math.min(1, pS * 1.1), Math.max(0.12, Math.min(0.25, pL * 0.5)));
+          addSwatch(deepHex, 'Deep Shade');
+
+          // B. Vibrant Accent (High chroma)
+          const vibrantHex = hslToHex(pH, Math.max(0.75, pS), Math.max(0.42, Math.min(0.58, pL)));
+          addSwatch(vibrantHex, 'Vibrant Accent');
+
+          // C. Warm Gold / Amber Accent if suitable or Harmonic Analogous (+30 deg hue)
+          const warmHex = hslToHex((pH + 30) % 360, Math.max(0.65, pS), 0.48);
+          addSwatch(warmHex, 'Warm Harmony');
+
+          // D. Elegant Indigo / Cool Blue Accent (-30 deg hue)
+          const coolHex = hslToHex((pH - 30 + 360) % 360, Math.max(0.65, pS), 0.46);
+          addSwatch(coolHex, 'Cool Harmony');
+
+          // E. Muted Luxury Tone
+          const mutedHex = hslToHex(pH, 0.24, 0.32);
+          addSwatch(mutedHex, 'Muted Tone');
+        }
+
+        // Cap at top 8 unique, high-contrast swatches
+        const finalSwatches = swatchesList.slice(0, 8);
+
+        // Find standard slots for backward compatibility
+        const vibrantSwatch = finalSwatches.find(s => s.hsl[1] >= 0.4 && s.hsl[2] >= 0.35 && s.hsl[2] <= 0.65) || finalSwatches[0] || null;
+        const darkVibrantSwatch = finalSwatches.find(s => s.hsl[1] >= 0.4 && s.hsl[2] < 0.35) || null;
+        const lightVibrantSwatch = finalSwatches.find(s => s.hsl[1] >= 0.4 && s.hsl[2] > 0.65) || null;
+        const mutedSwatch = finalSwatches.find(s => s.hsl[1] < 0.4 && s.hsl[2] >= 0.25 && s.hsl[2] <= 0.65) || null;
+        const darkMutedSwatch = finalSwatches.find(s => s.hsl[1] < 0.4 && s.hsl[2] < 0.25) || null;
+        const lightMutedSwatch = finalSwatches.find(s => s.hsl[1] < 0.4 && s.hsl[2] > 0.65) || null;
 
         resolve({
-          vibrant: formatSwatch(vibrantMatch, 'Vibrant'),
-          darkVibrant: formatSwatch(darkVibrantMatch, 'Dark Vibrant'),
-          lightVibrant: formatSwatch(lightVibrantMatch, 'Light Vibrant'),
-          muted: formatSwatch(mutedMatch, 'Muted'),
-          darkMuted: formatSwatch(darkMutedMatch, 'Dark Muted'),
-          lightMuted: formatSwatch(lightMutedMatch, 'Light Muted')
+          vibrant: vibrantSwatch,
+          darkVibrant: darkVibrantSwatch,
+          lightVibrant: lightVibrantSwatch,
+          muted: mutedSwatch,
+          darkMuted: darkMutedSwatch,
+          lightMuted: lightMutedSwatch,
+          dominant: finalSwatches[0] || null,
+          secondary: finalSwatches[1] || null,
+          accent: vibrantSwatch,
+          deep: darkVibrantSwatch || darkMutedSwatch,
+          allSwatches: finalSwatches,
         });
       } catch (err) {
         console.error('Error processing image canvas:', err);
@@ -216,34 +349,53 @@ export function extractColorsFromImage(imageSrc: string): Promise<ExtractedColor
 
 // Fallback color palette
 function getFallbackColors(): ExtractedColors {
+  const defaults: ColorSwatch[] = [
+    { name: 'Royal Navy', hex: '#1B2A4A', hsl: [222, 0.46, 0.2], isDark: true },
+    { name: 'Rich Burgundy', hex: '#8B263E', hsl: [346, 0.57, 0.35], isDark: true },
+    { name: 'Deep Forest', hex: '#2D5A27', hsl: [112, 0.39, 0.25], isDark: true },
+    { name: 'Espresso Bronze', hex: '#4A3B32', hsl: [23, 0.2, 0.24], isDark: true },
+    { name: 'Classic Sapphire', hex: '#0F4C81', hsl: [208, 0.79, 0.28], isDark: true },
+    { name: 'Midnight Slate', hex: '#1A1A24', hsl: [240, 0.16, 0.12], isDark: true },
+  ];
+
   return {
-    vibrant: { name: 'Vibrant', hex: '#1B2A4A', hsl: [222, 0.46, 0.2], isDark: true },
-    darkVibrant: { name: 'Dark Vibrant', hex: '#0B1528', hsl: [220, 0.57, 0.1], isDark: true },
-    lightVibrant: { name: 'Light Vibrant', hex: '#4464A1', hsl: [219, 0.45, 0.45], isDark: false },
-    muted: { name: 'Muted', hex: '#4F6B5D', hsl: [153, 0.15, 0.36], isDark: true },
-    darkMuted: { name: 'Dark Muted', hex: '#2C3A33', hsl: [152, 0.14, 0.2], isDark: true },
-    lightMuted: { name: 'Light Muted', hex: '#A2BCAD', hsl: [147, 0.18, 0.69], isDark: false }
+    vibrant: defaults[0],
+    darkVibrant: defaults[5],
+    lightVibrant: defaults[4],
+    muted: defaults[3],
+    darkMuted: defaults[2],
+    lightMuted: defaults[1],
+    dominant: defaults[0],
+    secondary: defaults[1],
+    allSwatches: defaults,
   };
 }
 
 // Select the "best-contrast" swatch among the extracted ones
-// (Usually we want a readable/strong text/button brand color. Let's pick vibrant or darkVibrant, or whichever is present and has solid contrast)
 export function getBestContrastSwatch(colors: ExtractedColors): ColorSwatch {
+  if (colors.allSwatches && colors.allSwatches.length > 0) {
+    // Prefer dominant or dark/vibrant brand swatch that provides high contrast
+    const best = colors.allSwatches.find(s => s.isDark && s.hsl[1] >= 0.15) || colors.allSwatches[0];
+    if (best) return best;
+  }
+
   // Ordered preference list
   const preferences = [
+    colors.dominant,
     colors.vibrant,
     colors.darkVibrant,
+    colors.secondary,
     colors.muted,
     colors.darkMuted,
     colors.lightVibrant,
-    colors.lightMuted
+    colors.lightMuted,
   ];
 
   for (const swatch of preferences) {
     if (swatch) return swatch;
   }
 
-  return { name: 'Default', hex: '#1B2A4A', hsl: [222, 0.46, 0.2], isDark: true };
+  return { name: 'Royal Navy', hex: '#1B2A4A', hsl: [222, 0.46, 0.2], isDark: true };
 }
 
 // High-definition logo optimization for Retina / high-DPI displays (800x800 max HD)

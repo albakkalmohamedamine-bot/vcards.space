@@ -1,7 +1,31 @@
 import { supabase } from './supabase';
 import { Session, User } from '@supabase/supabase-js';
 
+// Supabase Authentication enabled for production
+export const AUTH_DISABLED_FOR_DEVELOPMENT = false;
+
+const DEV_MOCK_USER: User = {
+  id: 'dev-admin-user',
+  app_metadata: {},
+  user_metadata: { name: 'Admin (Dev Mode)' },
+  aud: 'authenticated',
+  created_at: new Date().toISOString(),
+  email: 'admin@dev.local',
+} as unknown as User;
+
+const DEV_MOCK_SESSION: Session = {
+  access_token: 'dev-token',
+  token_type: 'bearer',
+  expires_in: 3600,
+  refresh_token: 'dev-refresh',
+  user: DEV_MOCK_USER,
+} as unknown as Session;
+
 export async function getSession(): Promise<Session | null> {
+  if (AUTH_DISABLED_FOR_DEVELOPMENT) {
+    return DEV_MOCK_SESSION;
+  }
+
   try {
     const { data, error } = await supabase.auth.getSession();
     if (error || !data.session) {
@@ -15,6 +39,10 @@ export async function getSession(): Promise<Session | null> {
 }
 
 export async function getUser(): Promise<User | null> {
+  if (AUTH_DISABLED_FOR_DEVELOPMENT) {
+    return DEV_MOCK_USER;
+  }
+
   try {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
@@ -28,6 +56,9 @@ export async function getUser(): Promise<User | null> {
 }
 
 export async function isAuthenticated(): Promise<boolean> {
+  if (AUTH_DISABLED_FOR_DEVELOPMENT) {
+    return true;
+  }
   const session = await getSession();
   return session !== null;
 }

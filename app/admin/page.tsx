@@ -241,6 +241,19 @@ export default function AdminPage() {
     website_label: 'Website',
     mobile_label: 'Call Us',
     landline_label: 'Office Line',
+    instagram_sub_label: '',
+    facebook_sub_label: '',
+    tiktok_sub_label: '',
+    snapchat_sub_label: '',
+    linkedin_sub_label: '',
+    twitter_sub_label: '',
+    youtube_sub_label: '',
+    whatsapp_sub_label: '',
+    email_sub_label: '',
+    address_sub_label: '',
+    website_sub_label: '',
+    phone_sub_label: '',
+    landline_sub_label: '',
     qr_logo_enabled: true,
     rate_us_enabled: true,
     review_url: '',
@@ -252,6 +265,7 @@ export default function AdminPage() {
     quick_action_1: '',
     quick_action_2: '',
     quick_action_3: '',
+    multi_links: {} as Record<string, Array<{ id?: string; value: string; label?: string }>>,
   });
 
   const [phoneCode, setPhoneCode] = useState<string>(DEFAULT_COUNTRY.dialCode);
@@ -510,6 +524,19 @@ export default function AdminPage() {
                 website_label: cardToEdit.website_label || 'Website',
                 mobile_label: cardToEdit.mobile_label || 'Call Us',
                 landline_label: cardToEdit.landline_label || 'Office Line',
+                instagram_sub_label: cardToEdit.instagram_sub_label || '',
+                facebook_sub_label: cardToEdit.facebook_sub_label || '',
+                tiktok_sub_label: cardToEdit.tiktok_sub_label || '',
+                snapchat_sub_label: cardToEdit.snapchat_sub_label || '',
+                linkedin_sub_label: cardToEdit.linkedin_sub_label || '',
+                twitter_sub_label: cardToEdit.twitter_sub_label || '',
+                youtube_sub_label: cardToEdit.youtube_sub_label || '',
+                whatsapp_sub_label: cardToEdit.whatsapp_sub_label || '',
+                email_sub_label: cardToEdit.email_sub_label || '',
+                address_sub_label: cardToEdit.address_sub_label || '',
+                website_sub_label: cardToEdit.website_sub_label || '',
+                phone_sub_label: cardToEdit.phone_sub_label || '',
+                landline_sub_label: cardToEdit.landline_sub_label || '',
                 qr_logo_enabled: cardToEdit.qr_logo_enabled ?? true,
                 rate_us_enabled: cardToEdit.rate_us_enabled ?? true,
                 review_url: cardToEdit.review_url || '',
@@ -521,8 +548,15 @@ export default function AdminPage() {
                 quick_action_1: cardToEdit.quick_action_1 || '',
                 quick_action_2: cardToEdit.quick_action_2 || '',
                 quick_action_3: cardToEdit.quick_action_3 || '',
+                multi_links: cardToEdit.multi_links && typeof cardToEdit.multi_links === 'object' ? cardToEdit.multi_links : {},
               });
               setSlug(cardToEdit.slug);
+
+              if (cardToEdit.logo) {
+                extractColorsFromImage(cardToEdit.logo).then(colors => {
+                  if (isMounted) setExtractedColors(colors);
+                }).catch(err => console.warn('Could not extract colors from existing card logo:', err));
+              }
             }
           } else if (!restored) {
             setEditingSlug(null);
@@ -688,6 +722,19 @@ export default function AdminPage() {
               website_label: cardToEdit.website_label || '',
               mobile_label: cardToEdit.mobile_label || '',
               landline_label: cardToEdit.landline_label || '',
+              instagram_sub_label: cardToEdit.instagram_sub_label || '',
+              facebook_sub_label: cardToEdit.facebook_sub_label || '',
+              tiktok_sub_label: cardToEdit.tiktok_sub_label || '',
+              snapchat_sub_label: cardToEdit.snapchat_sub_label || '',
+              linkedin_sub_label: cardToEdit.linkedin_sub_label || '',
+              twitter_sub_label: cardToEdit.twitter_sub_label || '',
+              youtube_sub_label: cardToEdit.youtube_sub_label || '',
+              whatsapp_sub_label: cardToEdit.whatsapp_sub_label || '',
+              email_sub_label: cardToEdit.email_sub_label || '',
+              address_sub_label: cardToEdit.address_sub_label || '',
+              website_sub_label: cardToEdit.website_sub_label || '',
+              phone_sub_label: cardToEdit.phone_sub_label || '',
+              landline_sub_label: cardToEdit.landline_sub_label || '',
               qr_logo_enabled: cardToEdit.qr_logo_enabled ?? true,
               rate_us_enabled: cardToEdit.rate_us_enabled ?? true,
               review_url: cardToEdit.review_url || '',
@@ -699,8 +746,15 @@ export default function AdminPage() {
               quick_action_1: cardToEdit.quick_action_1 || '',
               quick_action_2: cardToEdit.quick_action_2 || '',
               quick_action_3: cardToEdit.quick_action_3 || '',
+              multi_links: cardToEdit.multi_links && typeof cardToEdit.multi_links === 'object' ? cardToEdit.multi_links : {},
             });
             setSlug(cardToEdit.slug);
+
+            if (cardToEdit.logo) {
+              extractColorsFromImage(cardToEdit.logo).then(colors => {
+                setExtractedColors(colors);
+              }).catch(err => console.warn('Could not extract colors from discarded draft card logo:', err));
+            }
           }
         });
       } else {
@@ -748,6 +802,19 @@ export default function AdminPage() {
           website_label: '',
           mobile_label: '',
           landline_label: '',
+          instagram_sub_label: '',
+          facebook_sub_label: '',
+          tiktok_sub_label: '',
+          snapchat_sub_label: '',
+          linkedin_sub_label: '',
+          twitter_sub_label: '',
+          youtube_sub_label: '',
+          whatsapp_sub_label: '',
+          email_sub_label: '',
+          address_sub_label: '',
+          website_sub_label: '',
+          phone_sub_label: '',
+          landline_sub_label: '',
           qr_logo_enabled: true,
           rate_us_enabled: true,
           review_url: '',
@@ -759,6 +826,7 @@ export default function AdminPage() {
           quick_action_1: '',
           quick_action_2: '',
           quick_action_3: '',
+          multi_links: {},
         });
         setEditingSlug(null);
         setSlug('');
@@ -804,6 +872,194 @@ export default function AdminPage() {
     } else if (name === 'email' && value.trim() && !isValidEmail(value.trim())) {
       setFieldErrors(prev => ({ ...prev, email: 'Please enter a valid email address (e.g. name@domain.com).' }));
     }
+  };
+
+  const handleAddMultiLink = (channelKey: string) => {
+    setForm(prev => {
+      const existing = (prev.multi_links && prev.multi_links[channelKey]) || [];
+      return {
+        ...prev,
+        multi_links: {
+          ...(prev.multi_links || {}),
+          [channelKey]: [
+            ...existing,
+            { id: Math.random().toString(36).substring(2, 9), value: '', label: '' }
+          ]
+        }
+      };
+    });
+  };
+
+  const handleUpdateMultiLink = (channelKey: string, index: number, field: 'value' | 'label', val: string) => {
+    setForm(prev => {
+      const existing = [...((prev.multi_links && prev.multi_links[channelKey]) || [])];
+      if (existing[index]) {
+        existing[index] = { ...existing[index], [field]: val };
+      }
+      return {
+        ...prev,
+        multi_links: {
+          ...(prev.multi_links || {}),
+          [channelKey]: existing
+        }
+      };
+    });
+  };
+
+  const handleMoveMultiLink = (channelKey: string, index: number, direction: 'up' | 'down') => {
+    setForm(prev => {
+      const existing = [...((prev.multi_links && prev.multi_links[channelKey]) || [])];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= existing.length) return prev;
+
+      // Swap items
+      const temp = existing[index];
+      existing[index] = existing[targetIndex];
+      existing[targetIndex] = temp;
+
+      return {
+        ...prev,
+        multi_links: {
+          ...(prev.multi_links || {}),
+          [channelKey]: existing
+        }
+      };
+    });
+  };
+
+  const handleRemoveMultiLink = (channelKey: string, index: number) => {
+    setForm(prev => {
+      const existing = ((prev.multi_links && prev.multi_links[channelKey]) || []).filter((_, idx) => idx !== index);
+      const updatedMulti = { ...(prev.multi_links || {}) };
+      if (existing.length === 0) {
+        delete updatedMulti[channelKey];
+      } else {
+        updatedMulti[channelKey] = existing;
+      }
+      return {
+        ...prev,
+        multi_links: updatedMulti
+      };
+    });
+  };
+
+  const renderMultiLinkFields = (
+    channelKey: string,
+    title: string,
+    placeholderValue: string,
+    placeholderLabel: string,
+    colorScheme: { bg: string; border: string; text: string; buttonBg: string; buttonText: string; buttonBorder: string },
+    subLabelKey?: keyof typeof form
+  ) => {
+    const extraLinks = (form.multi_links && form.multi_links[channelKey]) || [];
+    const hasExtras = extraLinks.length > 0;
+    
+    return (
+      <div className="space-y-2.5 mt-3 pt-3 border-t border-slate-200/80">
+        {/* Optional Main Link Sub-Label field when multiple links exist */}
+        {hasExtras && subLabelKey && (
+          <div className="p-3 rounded-xl border border-indigo-100 bg-indigo-50/40 shadow-2xs space-y-1.5 transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono font-bold text-indigo-900 uppercase flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 inline-block" />
+                Main Button #1 Sub-Label (Pop-up Window)
+              </span>
+              <span className="text-[10px] font-mono text-indigo-500 bg-indigo-100/60 px-1.5 py-0.5 rounded">
+                Primary
+              </span>
+            </div>
+            <p className="text-[11px] text-indigo-700/80">
+              Text shown on button #1 inside the pop-up modal when clicked:
+            </p>
+            <input
+              type="text"
+              name={subLabelKey}
+              value={(form[subLabelKey] as string) || ''}
+              onChange={handleChange}
+              placeholder={`e.g. Main ${title} / Branch 1`}
+              className="w-full h-9 px-3 bg-white rounded-lg border border-indigo-200 text-xs font-sans focus:ring-1 focus:ring-indigo-400"
+            />
+          </div>
+        )}
+
+        {extraLinks.map((extra, idx) => (
+          <div 
+            key={extra.id || idx} 
+            className={`p-3 rounded-xl border ${colorScheme.border} ${colorScheme.bg} shadow-2xs space-y-2 transition-all`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-[11px] font-mono font-bold ${colorScheme.text} uppercase flex items-center gap-1.5`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-current inline-block" />
+                Additional {title} Sub-Button #{idx + 2}
+              </span>
+              <div className="flex items-center gap-1">
+                {idx > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => handleMoveMultiLink(channelKey, idx, 'up')}
+                    title="Move sub-button up in display order"
+                    className="text-[11px] text-slate-500 hover:text-slate-800 font-bold px-1.5 py-0.5 rounded hover:bg-black/5 cursor-pointer transition-colors"
+                  >
+                    ↑ Up
+                  </button>
+                )}
+                {idx < extraLinks.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleMoveMultiLink(channelKey, idx, 'down')}
+                    title="Move sub-button down in display order"
+                    className="text-[11px] text-slate-500 hover:text-slate-800 font-bold px-1.5 py-0.5 rounded hover:bg-black/5 cursor-pointer transition-colors"
+                  >
+                    ↓ Down
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveMultiLink(channelKey, idx)}
+                  className="text-[11px] text-red-500 hover:text-red-700 font-bold flex items-center gap-1 hover:bg-red-50 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Remove
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase mb-1">
+                  {channelKey.includes('phone') || channelKey.includes('landline') || channelKey.includes('whatsapp') ? 'Number' : 'Handle / URL'}
+                </label>
+                <input
+                  type={channelKey.includes('phone') || channelKey.includes('landline') || channelKey.includes('whatsapp') ? 'tel' : 'text'}
+                  value={extra.value}
+                  onChange={(e) => handleUpdateMultiLink(channelKey, idx, 'value', e.target.value)}
+                  placeholder={placeholderValue}
+                  className="w-full h-9 px-3 bg-white rounded-lg border border-slate-200 text-xs font-sans focus:ring-1 focus:ring-slate-400"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase mb-1">
+                  Sub-Button #{idx + 2} Label
+                </label>
+                <input
+                  type="text"
+                  value={extra.label || ''}
+                  onChange={(e) => handleUpdateMultiLink(channelKey, idx, 'label', e.target.value)}
+                  placeholder={placeholderLabel || `${title} (${idx + 2})`}
+                  className="w-full h-9 px-3 bg-white rounded-lg border border-slate-200 text-xs font-sans focus:ring-1 focus:ring-slate-400"
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => handleAddMultiLink(channelKey)}
+          className={`w-full py-2 px-3 ${colorScheme.buttonBg} hover:opacity-90 active:scale-[0.99] ${colorScheme.buttonText} rounded-xl border border-dashed ${colorScheme.buttonBorder} text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs`}
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>Add Another {title} Link</span>
+        </button>
+      </div>
+    );
   };
 
   const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1380,6 +1636,19 @@ export default function AdminPage() {
       website_label: form.website_label.trim() || undefined,
       mobile_label: form.mobile_label.trim() || undefined,
       landline_label: form.landline_label.trim() || undefined,
+      instagram_sub_label: form.instagram_sub_label.trim() || undefined,
+      facebook_sub_label: form.facebook_sub_label.trim() || undefined,
+      tiktok_sub_label: form.tiktok_sub_label.trim() || undefined,
+      snapchat_sub_label: form.snapchat_sub_label.trim() || undefined,
+      linkedin_sub_label: form.linkedin_sub_label.trim() || undefined,
+      twitter_sub_label: form.twitter_sub_label.trim() || undefined,
+      youtube_sub_label: form.youtube_sub_label.trim() || undefined,
+      whatsapp_sub_label: form.whatsapp_sub_label.trim() || undefined,
+      email_sub_label: form.email_sub_label.trim() || undefined,
+      address_sub_label: form.address_sub_label.trim() || undefined,
+      website_sub_label: form.website_sub_label.trim() || undefined,
+      phone_sub_label: form.phone_sub_label.trim() || undefined,
+      landline_sub_label: form.landline_sub_label.trim() || undefined,
       qr_logo_enabled: form.qr_logo_enabled ?? true,
       rate_us_enabled: form.rate_us_enabled ?? true,
       review_url: sanitizeUrl(form.review_url),
@@ -1391,6 +1660,25 @@ export default function AdminPage() {
       quick_action_1: form.quick_action_1 || undefined,
       quick_action_2: form.quick_action_2 || undefined,
       quick_action_3: form.quick_action_3 || undefined,
+      multi_links: (() => {
+        if (!form.multi_links || typeof form.multi_links !== 'object') return undefined;
+        const cleaned: Record<string, Array<{ id?: string; value: string; label?: string }>> = {};
+        Object.entries(form.multi_links).forEach(([channel, list]) => {
+          if (Array.isArray(list)) {
+            const valid = list
+              .map(item => ({
+                id: item.id || Math.random().toString(36).substring(2, 9),
+                value: item.value?.trim() || '',
+                label: item.label?.trim() || undefined,
+              }))
+              .filter(item => item.value !== '');
+            if (valid.length > 0) {
+              cleaned[channel] = valid;
+            }
+          }
+        });
+        return Object.keys(cleaned).length > 0 ? cleaned : undefined;
+      })(),
     };
 
     setCardToConfirm(newCard);
@@ -1459,6 +1747,19 @@ export default function AdminPage() {
         website_label: 'Website',
         mobile_label: 'Call Us',
         landline_label: 'Office Line',
+        instagram_sub_label: '',
+        facebook_sub_label: '',
+        tiktok_sub_label: '',
+        snapchat_sub_label: '',
+        linkedin_sub_label: '',
+        twitter_sub_label: '',
+        youtube_sub_label: '',
+        whatsapp_sub_label: '',
+        email_sub_label: '',
+        address_sub_label: '',
+        website_sub_label: '',
+        phone_sub_label: '',
+        landline_sub_label: '',
         qr_logo_enabled: true,
         rate_us_enabled: true,
         review_url: '',
@@ -1470,6 +1771,7 @@ export default function AdminPage() {
         quick_action_1: '',
         quick_action_2: '',
         quick_action_3: '',
+        multi_links: {},
       });
       setSlug('');
       setExtractedColors(null);
@@ -1513,21 +1815,27 @@ export default function AdminPage() {
   };
 
   const defaultSwatches: ColorSwatch[] = [
-    { hex: '#1B2A4A', name: 'Navy', hsl: [222, 0.46, 0.20], isDark: true },
-    { hex: '#8B263E', name: 'Burgundy', hsl: [346, 0.57, 0.35], isDark: true },
-    { hex: '#2D5A27', name: 'Forest', hsl: [112, 0.39, 0.25], isDark: true },
-    { hex: '#4A3B32', name: 'Espresso', hsl: [23, 0.20, 0.24], isDark: true },
-    { hex: '#1A1A24', name: 'Midnight', hsl: [240, 0.16, 0.12], isDark: true },
-    { hex: '#0F4C81', name: 'Classic Blue', hsl: [208, 0.79, 0.28], isDark: true },
+    { hex: '#1B2A4A', name: 'Royal Navy', hsl: [222, 0.46, 0.20], isDark: true },
+    { hex: '#8B263E', name: 'Rich Burgundy', hsl: [346, 0.57, 0.35], isDark: true },
+    { hex: '#2D5A27', name: 'Deep Forest', hsl: [112, 0.39, 0.25], isDark: true },
+    { hex: '#4A3B32', name: 'Espresso Bronze', hsl: [23, 0.20, 0.24], isDark: true },
+    { hex: '#0F4C81', name: 'Classic Sapphire', hsl: [208, 0.79, 0.28], isDark: true },
+    { hex: '#1A1A24', name: 'Midnight Slate', hsl: [240, 0.16, 0.12], isDark: true },
+    { hex: '#C25E00', name: 'Warm Amber', hsl: [29, 1.0, 0.38], isDark: true },
+    { hex: '#4F46E5', name: 'Vibrant Indigo', hsl: [245, 0.75, 0.59], isDark: true },
   ];
 
-  const swatchesToDisplay: ColorSwatch[] = extractedColors
+  const swatchesToDisplay: ColorSwatch[] = extractedColors?.allSwatches?.length
+    ? extractedColors.allSwatches
+    : extractedColors
     ? ([
+        extractedColors.dominant,
         extractedColors.vibrant,
         extractedColors.darkVibrant,
-        extractedColors.lightVibrant,
+        extractedColors.secondary,
         extractedColors.muted,
         extractedColors.darkMuted,
+        extractedColors.lightVibrant,
         extractedColors.lightMuted,
       ].filter(Boolean) as ColorSwatch[])
     : defaultSwatches;
@@ -2194,21 +2502,21 @@ export default function AdminPage() {
                     <span className="block text-[10px] font-mono text-slate-600 uppercase tracking-wide mb-2.5 font-bold">
                       {form.logo ? 'Extracted Swatches' : 'Suggested Swatches'}
                     </span>
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
                       {swatchesToDisplay.map((swatch) => (
                         <button
-                          key={swatch.name}
+                          key={`${swatch.name}-${swatch.hex}`}
                           type="button"
                           onClick={() => setForm(prev => ({ ...prev, themeColor: swatch.hex }))}
-                          className={`group flex flex-col items-center justify-center p-2.5 min-h-[72px] rounded-xl border transition-all text-center select-none touch-manipulation cursor-pointer ${
+                          className={`group flex flex-col items-center justify-center p-2.5 min-h-[76px] rounded-xl border transition-all text-center select-none touch-manipulation cursor-pointer ${
                             form.themeColor.toLowerCase() === swatch.hex.toLowerCase()
-                              ? 'border-indigo-600 bg-white shadow-sm ring-2 ring-indigo-500/10 scale-[1.02]'
+                              ? 'border-indigo-600 bg-white shadow-sm ring-2 ring-indigo-500/20 scale-[1.02]'
                               : 'border-slate-200 bg-white hover:border-slate-300 active:scale-98'
                           }`}
                           title={`${swatch.name}: ${swatch.hex}`}
                         >
                           <div 
-                            className="w-8 h-8 rounded-full shadow-inner mb-1.5 transition-transform group-hover:scale-105 shrink-0" 
+                            className="w-7 h-7 rounded-full shadow-inner mb-1.5 transition-transform group-hover:scale-110 shrink-0 border border-black/10" 
                             style={{ backgroundColor: swatch.hex }}
                           />
                           <span className="text-[10px] font-bold text-slate-800 truncate w-full leading-tight">
@@ -2547,6 +2855,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('instagram', 'Instagram', 'e.g. mybusiness2 or URL', 'Instagram 2', { bg: 'bg-pink-50/50', border: 'border-pink-200', text: 'text-pink-700', buttonBg: 'bg-pink-50 hover:bg-pink-100', buttonText: 'text-pink-700', buttonBorder: 'border-pink-300' }, 'instagram_sub_label')}
                     </div>
 
                     {/* 4. Facebook */}
@@ -2585,6 +2894,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('facebook', 'Facebook', 'e.g. page2 or URL', 'Facebook 2', { bg: 'bg-blue-50/50', border: 'border-blue-200', text: 'text-blue-700', buttonBg: 'bg-blue-50 hover:bg-blue-100', buttonText: 'text-blue-700', buttonBorder: 'border-blue-300' }, 'facebook_sub_label')}
                     </div>
 
                     {/* 5. TikTok */}
@@ -2625,6 +2935,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('tiktok', 'TikTok', 'e.g. @account2', 'TikTok 2', { bg: 'bg-slate-100/60', border: 'border-slate-300', text: 'text-slate-900', buttonBg: 'bg-slate-100 hover:bg-slate-200', buttonText: 'text-slate-800', buttonBorder: 'border-slate-300' }, 'tiktok_sub_label')}
                     </div>
 
                     {/* 6. Snapchat */}
@@ -2665,6 +2976,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('snapchat', 'Snapchat', 'e.g. account2', 'Snapchat 2', { bg: 'bg-yellow-50/60', border: 'border-yellow-200', text: 'text-yellow-800', buttonBg: 'bg-yellow-50 hover:bg-yellow-100', buttonText: 'text-yellow-800', buttonBorder: 'border-yellow-300' }, 'snapchat_sub_label')}
                     </div>
 
                     {/* 7. LinkedIn */}
@@ -2705,6 +3017,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('linkedin', 'LinkedIn', 'e.g. company/branch2', 'LinkedIn 2', { bg: 'bg-blue-50/50', border: 'border-blue-200', text: 'text-blue-700', buttonBg: 'bg-blue-50 hover:bg-blue-100', buttonText: 'text-blue-700', buttonBorder: 'border-blue-300' }, 'linkedin_sub_label')}
                     </div>
 
                     {/* 8. X (Twitter) */}
@@ -2745,6 +3058,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('twitter', 'X (Twitter)', 'e.g. @handle2', 'X 2', { bg: 'bg-slate-100/60', border: 'border-slate-300', text: 'text-slate-900', buttonBg: 'bg-slate-100 hover:bg-slate-200', buttonText: 'text-slate-800', buttonBorder: 'border-slate-300' }, 'twitter_sub_label')}
                     </div>
 
                     {/* 9. YouTube */}
@@ -2785,6 +3099,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('youtube', 'YouTube', 'e.g. @channel2', 'YouTube 2', { bg: 'bg-red-50/50', border: 'border-red-200', text: 'text-red-700', buttonBg: 'bg-red-50 hover:bg-red-100', buttonText: 'text-red-700', buttonBorder: 'border-red-300' }, 'youtube_sub_label')}
                     </div>
 
                     {/* 6. WhatsApp */}
@@ -2836,6 +3151,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('whatsapp', 'WhatsApp', 'e.g. +1234567890', 'WhatsApp 2', { bg: 'bg-emerald-50/50', border: 'border-emerald-200', text: 'text-emerald-700', buttonBg: 'bg-emerald-50 hover:bg-emerald-100', buttonText: 'text-emerald-700', buttonBorder: 'border-emerald-300' }, 'whatsapp_sub_label')}
                     </div>
 
                     {/* 7. Email */}
@@ -2874,6 +3190,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('email', 'Email', 'e.g. support@business.com', 'Support Email', { bg: 'bg-purple-50/50', border: 'border-purple-200', text: 'text-purple-700', buttonBg: 'bg-purple-50 hover:bg-purple-100', buttonText: 'text-purple-700', buttonBorder: 'border-purple-300' }, 'email_sub_label')}
                     </div>
 
                     {/* 8. Localisation */}
@@ -2912,6 +3229,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('address', 'Location', 'e.g. Branch 2 Address', 'Branch 2', { bg: 'bg-amber-50/50', border: 'border-amber-200', text: 'text-amber-700', buttonBg: 'bg-amber-50 hover:bg-amber-100', buttonText: 'text-amber-700', buttonBorder: 'border-amber-300' }, 'address_sub_label')}
                     </div>
 
                     {/* 9. Website */}
@@ -2950,6 +3268,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('website', 'Website', 'https://shop.business.com', 'Online Store', { bg: 'bg-indigo-50/50', border: 'border-indigo-200', text: 'text-indigo-700', buttonBg: 'bg-indigo-50 hover:bg-indigo-100', buttonText: 'text-indigo-700', buttonBorder: 'border-indigo-300' }, 'website_sub_label')}
                     </div>
 
                     {/* 10. Mobile Phone */}
@@ -3001,6 +3320,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('phone', 'Phone Number', 'e.g. +1234567890', 'Sales Line', { bg: 'bg-teal-50/50', border: 'border-teal-200', text: 'text-teal-700', buttonBg: 'bg-teal-50 hover:bg-teal-100', buttonText: 'text-teal-700', buttonBorder: 'border-teal-300' }, 'phone_sub_label')}
                     </div>
 
                     {/* 11. Landline */}
@@ -3052,6 +3372,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('landline', 'Landline', 'e.g. +1234567890', 'Reception', { bg: 'bg-slate-100/60', border: 'border-slate-300', text: 'text-slate-800', buttonBg: 'bg-slate-100 hover:bg-slate-200', buttonText: 'text-slate-800', buttonBorder: 'border-slate-300' }, 'landline_sub_label')}
                     </div>
 
                     {/* 12. 5 Golden Stars & Google Review Button */}

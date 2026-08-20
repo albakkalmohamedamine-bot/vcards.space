@@ -699,6 +699,12 @@ export default function CardClient({
   // Save Modal & Shortcut States
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [activeMultiLinkModal, setActiveMultiLinkModal] = useState<{
+    key: string;
+    title: string;
+    icon: React.ReactNode;
+    items: { label: string; url: string }[];
+  } | null>(null);
   const [shortcutMode, setShortcutMode] = useState<'choice' | 'instructions'>('choice');
   const [deviceType, setDeviceType] = useState<'ios' | 'android'>('android');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -899,6 +905,75 @@ export default function CardClient({
       isRateUs?: boolean;
     }[] = [];
 
+    // Helper to build a multi-link capable business row
+    const buildMultiLinkRow = (
+      key: string,
+      mainVal: string | undefined,
+      mainLabel: string | undefined,
+      primarySubLabel: string | undefined,
+      defaultLabelKey: keyof ReturnType<typeof getCardTranslation>['defaultRowLabels'],
+      icon: React.ReactNode
+    ) => {
+      const items: { label: string; url: string }[] = [];
+      const localizedDefault = getLocalizedRowLabel(undefined, defaultLabelKey, cardLang);
+      const baseLabel = getLocalizedRowLabel(mainLabel, defaultLabelKey, cardLang);
+
+      if (mainVal && mainVal.trim()) {
+        const hasExtra = Boolean(c.multi_links?.[key]?.some(e => e && ((e.value && e.value.trim()) || ((e as any).url && (e as any).url.trim()))));
+        const resolvedPrimarySub = primarySubLabel && primarySubLabel.trim()
+          ? primarySubLabel.trim()
+          : ((c.multi_links as any)?._primary_labels?.[key] || (c.multi_links as any)?.[`${key}_sub_label`] || '');
+
+        const firstLabel = resolvedPrimarySub
+          ? resolvedPrimarySub
+          : (mainLabel && mainLabel.trim() ? mainLabel.trim() : (hasExtra ? `${localizedDefault} 1` : baseLabel));
+
+        items.push({
+          label: firstLabel,
+          url: getActionHref(key, mainVal.trim()),
+        });
+      }
+
+      const extras = c.multi_links?.[key] || [];
+      extras.forEach((extra) => {
+        const rawVal = extra ? (extra.value || (extra as any).url) : '';
+        if (rawVal && rawVal.trim()) {
+          const extraLabel = extra.label && extra.label.trim()
+            ? extra.label.trim()
+            : `${localizedDefault} ${items.length + 1}`;
+          items.push({
+            label: extraLabel,
+            url: getActionHref(key, rawVal.trim()),
+          });
+        }
+      });
+
+      if (items.length === 0) return null;
+
+      if (items.length === 1) {
+        return {
+          id: key,
+          label: baseLabel,
+          icon,
+          url: items[0].url,
+        };
+      }
+
+      return {
+        id: key,
+        label: baseLabel,
+        icon,
+        onClick: () => {
+          setActiveMultiLinkModal({
+            key,
+            title: baseLabel,
+            icon,
+            items,
+          });
+        },
+      };
+    };
+
     if (c.menu_pdf) {
       const pdfUrl = c.menu_pdf;
       const menuLabel = getLocalizedRowLabel(c.menu_label, 'menu', cardLang);
@@ -954,127 +1029,53 @@ export default function CardClient({
       });
     }
 
-    if (c.instagram) {
-      rows.push({
-        id: 'instagram',
-        label: getLocalizedRowLabel(c.instagram_label, 'instagram', cardLang),
-        icon: <Instagram className="w-5 h-5" />,
-        url: c.instagram.startsWith('http') ? c.instagram : `https://instagram.com/${c.instagram.replace('@', '')}`,
-      });
-    }
+    const instagramRow = buildMultiLinkRow('instagram', c.instagram, c.instagram_label, c.instagram_sub_label, 'instagram', <Instagram className="w-5 h-5" />);
+    if (instagramRow) rows.push(instagramRow);
 
-    if (c.facebook) {
-      rows.push({
-        id: 'facebook',
-        label: getLocalizedRowLabel(c.facebook_label, 'facebook', cardLang),
-        icon: <Facebook className="w-5 h-5" />,
-        url: c.facebook.startsWith('http') ? c.facebook : `https://facebook.com/${c.facebook}`,
-      });
-    }
+    const facebookRow = buildMultiLinkRow('facebook', c.facebook, c.facebook_label, c.facebook_sub_label, 'facebook', <Facebook className="w-5 h-5" />);
+    if (facebookRow) rows.push(facebookRow);
 
-    if (c.tiktok) {
-      rows.push({
-        id: 'tiktok',
-        label: getLocalizedRowLabel(c.tiktok_label, 'tiktok', cardLang),
-        icon: (
-          <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.68 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.33-6.33V9.05a8.16 8.16 0 0 0 4.92 1.58V7.18a4.85 4.85 0 0 1-1-.49z"/>
-          </svg>
-        ),
-        url: c.tiktok.startsWith('http') ? c.tiktok : `https://tiktok.com/@${c.tiktok.replace('@', '')}`,
-      });
-    }
+    const tiktokRow = buildMultiLinkRow(
+      'tiktok',
+      c.tiktok,
+      c.tiktok_label,
+      c.tiktok_sub_label,
+      'tiktok',
+      <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.68 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.33-6.33V9.05a8.16 8.16 0 0 0 4.92 1.58V7.18a4.85 4.85 0 0 1-1-.49z"/>
+      </svg>
+    );
+    if (tiktokRow) rows.push(tiktokRow);
 
-    if (c.snapchat) {
-      rows.push({
-        id: 'snapchat',
-        label: getLocalizedRowLabel(c.snapchat_label, 'snapchat', cardLang),
-        icon: getActionIcon('snapchat', 'w-5 h-5'),
-        url: c.snapchat.startsWith('http') ? c.snapchat : `https://snapchat.com/add/${c.snapchat.replace('@', '')}`,
-      });
-    }
+    const snapchatRow = buildMultiLinkRow('snapchat', c.snapchat, c.snapchat_label, c.snapchat_sub_label, 'snapchat', getActionIcon('snapchat', 'w-5 h-5'));
+    if (snapchatRow) rows.push(snapchatRow);
 
-    if (c.linkedin) {
-      rows.push({
-        id: 'linkedin',
-        label: getLocalizedRowLabel(c.linkedin_label, 'linkedin', cardLang),
-        icon: getActionIcon('linkedin', 'w-5 h-5'),
-        url: c.linkedin.startsWith('http') ? c.linkedin : `https://linkedin.com/${c.linkedin.startsWith('in/') || c.linkedin.startsWith('company/') ? c.linkedin : `in/${c.linkedin}`}`,
-      });
-    }
+    const linkedinRow = buildMultiLinkRow('linkedin', c.linkedin, c.linkedin_label, c.linkedin_sub_label, 'linkedin', getActionIcon('linkedin', 'w-5 h-5'));
+    if (linkedinRow) rows.push(linkedinRow);
 
-    if (c.twitter) {
-      rows.push({
-        id: 'twitter',
-        label: getLocalizedRowLabel(c.twitter_label, 'twitter', cardLang),
-        icon: getActionIcon('twitter', 'w-5 h-5'),
-        url: c.twitter.startsWith('http') ? c.twitter : `https://x.com/${c.twitter.replace('@', '')}`,
-      });
-    }
+    const twitterRow = buildMultiLinkRow('twitter', c.twitter, c.twitter_label, c.twitter_sub_label, 'twitter', getActionIcon('twitter', 'w-5 h-5'));
+    if (twitterRow) rows.push(twitterRow);
 
-    if (c.youtube) {
-      rows.push({
-        id: 'youtube',
-        label: getLocalizedRowLabel(c.youtube_label, 'youtube', cardLang),
-        icon: getActionIcon('youtube', 'w-5 h-5'),
-        url: c.youtube.startsWith('http') ? c.youtube : `https://youtube.com/${c.youtube.startsWith('@') ? c.youtube : `@${c.youtube}`}`,
-      });
-    }
+    const youtubeRow = buildMultiLinkRow('youtube', c.youtube, c.youtube_label, c.youtube_sub_label, 'youtube', getActionIcon('youtube', 'w-5 h-5'));
+    if (youtubeRow) rows.push(youtubeRow);
 
-    if (c.whatsapp) {
-      rows.push({
-        id: 'whatsapp',
-        label: getLocalizedRowLabel(c.whatsapp_label, 'whatsapp', cardLang),
-        icon: getActionIcon('whatsapp', 'w-5 h-5'),
-        url: `https://wa.me/${c.whatsapp.replace(/\D/g, '')}`,
-      });
-    }
+    const whatsappRow = buildMultiLinkRow('whatsapp', c.whatsapp, c.whatsapp_label, c.whatsapp_sub_label, 'whatsapp', getActionIcon('whatsapp', 'w-5 h-5'));
+    if (whatsappRow) rows.push(whatsappRow);
 
-    if (c.email) {
-      rows.push({
-        id: 'email',
-        label: getLocalizedRowLabel(c.email_label, 'email', cardLang),
-        icon: <Mail className="w-5 h-5" />,
-        url: `mailto:${c.email}`,
-      });
-    }
+    const emailRow = buildMultiLinkRow('email', c.email, c.email_label, c.email_sub_label, 'email', <Mail className="w-5 h-5" />);
+    if (emailRow) rows.push(emailRow);
 
-    if (c.address) {
-      const mapsUrl = c.google_maps || `https://maps.google.com/?q=${encodeURIComponent(c.address)}`;
-      rows.push({
-        id: 'address',
-        label: getLocalizedRowLabel(c.localisation_label, 'address', cardLang),
-        icon: <MapPin className="w-5 h-5" />,
-        url: mapsUrl,
-      });
-    }
+    const addressRow = buildMultiLinkRow('address', c.address, c.localisation_label, c.address_sub_label, 'address', <MapPin className="w-5 h-5" />);
+    if (addressRow) rows.push(addressRow);
 
-    if (c.website) {
-      rows.push({
-        id: 'website',
-        label: getLocalizedRowLabel(c.website_label, 'website', cardLang),
-        icon: <Globe className="w-5 h-5" />,
-        url: c.website.startsWith('http') ? c.website : `https://${c.website}`,
-      });
-    }
+    const websiteRow = buildMultiLinkRow('website', c.website, c.website_label, c.website_sub_label, 'website', <Globe className="w-5 h-5" />);
+    if (websiteRow) rows.push(websiteRow);
 
-    if (c.phone) {
-      rows.push({
-        id: 'phone',
-        label: getLocalizedRowLabel(c.mobile_label, 'phone', cardLang),
-        icon: <Phone className="w-5 h-5" />,
-        url: `tel:${c.phone}`,
-      });
-    }
+    const phoneRow = buildMultiLinkRow('phone', c.phone, c.mobile_label, c.phone_sub_label, 'phone', <Phone className="w-5 h-5" />);
+    if (phoneRow) rows.push(phoneRow);
 
-    if (c.landline) {
-      rows.push({
-        id: 'landline',
-        label: getLocalizedRowLabel(c.landline_label, 'landline', cardLang),
-        icon: <PhoneCall className="w-5 h-5" />,
-        url: `tel:${c.landline}`,
-      });
-    }
+    const landlineRow = buildMultiLinkRow('landline', c.landline, c.landline_label, c.landline_sub_label, 'landline', <PhoneCall className="w-5 h-5" />);
+    if (landlineRow) rows.push(landlineRow);
 
     if (c.delivery_enabled && c.delivery_number) {
       rows.push({
@@ -1122,9 +1123,6 @@ export default function CardClient({
   };
 
   const getActionHref = (actionType: string, value: string) => {
-    if (actionType === 'address' && card) {
-      return getGoogleMapsHref(card);
-    }
     if (!value) return '#';
     const trimmed = value.trim();
     if (trimmed.toLowerCase().startsWith('javascript:') || trimmed.toLowerCase().startsWith('data:')) {
@@ -1145,7 +1143,12 @@ export default function CardClient({
         return cleanNumber ? `https://wa.me/${cleanNumber}` : '#';
       }
       case 'email': return `mailto:${encodeURIComponent(trimmed)}`;
-      case 'address': return getGoogleMapsHref(card!);
+      case 'address': {
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          return trimmed;
+        }
+        return `https://maps.google.com/?q=${encodeURIComponent(trimmed)}`;
+      }
       case 'website': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
       case 'instagram': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://instagram.com/${trimmed.replace('@', '')}`;
       case 'facebook': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://facebook.com/${trimmed}`;
@@ -1378,10 +1381,10 @@ export default function CardClient({
                   <div 
                     className="flex items-center justify-center transition-all duration-300 overflow-hidden w-48 h-48 sm:w-56 sm:h-56"
                     style={{ 
-                      backgroundColor: card.logo ? 'transparent' : 'rgba(255, 255, 255, 0.1)',
+                      backgroundColor: card.logo ? 'transparent' : 'rgba(255, 255, 255, 0.08)',
                       borderColor: 'transparent',
                       borderRadius: isCircle ? '50%' : '22%',
-                      filter: 'drop-shadow(0px 0px 18px rgba(255, 255, 255, 0.6))'
+                      filter: 'drop-shadow(0px 0px 14px rgba(255, 255, 255, 0.36))'
                     }}
                   >
                     {card.logo ? (
@@ -1391,7 +1394,6 @@ export default function CardClient({
                         loading="eager"
                         decoding="async"
                         className="w-full h-full object-cover p-0" 
-                        style={{ filter: 'drop-shadow(0px 0px 18px rgba(255, 255, 255, 0.6))' }}
                       />
                     ) : (
                       <span className="font-serif font-bold tracking-tight text-white select-none text-6xl sm:text-7xl">
@@ -1448,7 +1450,7 @@ export default function CardClient({
                         }}
                       >
                         <span className="text-xs font-bold font-sans tracking-[0.16em] text-white/90 uppercase mb-0.5">
-                          {getCardTranslation(card.language || 'en').reviewUs}
+                          {translations.reviewUs}
                         </span>
                         {/* 5 Big Golden Stars */}
                         <div className="flex items-center gap-1.5 text-amber-400">
@@ -1549,7 +1551,7 @@ export default function CardClient({
                   onClick={handleSaveClick}
                 >
                   <UserPlus className="w-4 h-4 shrink-0 text-white" />
-                  <span className="tracking-wide text-xs truncate text-white">{getCardTranslation(card.language || 'en').saveContact}</span>
+                  <span className="tracking-wide text-xs truncate text-white">{translations.saveContact}</span>
                 </button>
               </motion.div>
             </div>
@@ -2048,6 +2050,111 @@ export default function CardClient({
                   </button>
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Business Multi-Links Popup Modal */}
+      <AnimatePresence>
+        {activeMultiLinkModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActiveMultiLinkModal(null)}
+              className="fixed inset-0 bg-black/75 backdrop-blur-md cursor-pointer"
+            />
+
+            {/* Modal Box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 16 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              dir={currentLang === 'ar' ? 'rtl' : 'ltr'}
+              className="relative w-full max-w-sm sm:max-w-md rounded-3xl p-6 shadow-2xl border border-white/20 z-10 text-white overflow-hidden"
+              style={{
+                background: `linear-gradient(180deg, ${themeColor} 0%, #080c14 100%)`,
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.75)',
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-white/15 mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white/15 border border-white/20 text-white shrink-0 shadow-inner [&_svg]:w-5 [&_svg]:h-5">
+                    {activeMultiLinkModal.icon}
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg sm:text-xl text-white leading-tight">
+                      {activeMultiLinkModal.title}
+                    </h3>
+                    <p className="text-xs text-white/70 font-sans mt-0.5">
+                      {translations.multiLinksModal?.selectOption || 'Choose an option'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveMultiLinkModal(null)}
+                  className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors cursor-pointer border border-white/10"
+                  aria-label={translations.multiLinksModal?.close || 'Close'}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* List of multi-link option buttons */}
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                {activeMultiLinkModal.items.map((item, i) => (
+                  <motion.a
+                    key={`${item.url}-${i}`}
+                    href={item.url}
+                    target={['whatsapp', 'website', 'instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube', 'address'].includes(activeMultiLinkModal.key) ? '_blank' : undefined}
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      if (!item.url.startsWith('tel:') && !item.url.startsWith('mailto:')) {
+                        setActiveMultiLinkModal(null);
+                      }
+                    }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="group relative w-full py-3.5 sm:py-4 px-10 sm:px-12 rounded-full flex items-center justify-center text-white transition-all duration-200 hover:bg-white/20 shadow-lg cursor-pointer min-h-[54px]"
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                      backdropFilter: 'blur(12px)',
+                      WebkitBackdropFilter: 'blur(12px)',
+                      border: '1px solid rgba(255, 255, 255, 0.25)',
+                      borderRadius: '9999px',
+                    }}
+                  >
+                    {/* Un-boxed icon on the left */}
+                    <div className="absolute left-4 sm:left-5 text-white shrink-0 transition-transform duration-200 group-hover:scale-110 [&_svg]:w-5 [&_svg]:h-5">
+                      {activeMultiLinkModal.icon}
+                    </div>
+                    <span className="font-bold text-sm sm:text-base text-white tracking-wide text-center truncate px-4">
+                      {item.label}
+                    </span>
+                    <ArrowUpRight className="absolute right-4 sm:right-5 w-4 h-4 sm:w-5 sm:h-5 text-white/80 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </motion.a>
+                ))}
+              </div>
+
+              {/* Close button at bottom */}
+              <div className="mt-5 pt-4 border-t border-white/15">
+                <button
+                  type="button"
+                  onClick={() => setActiveMultiLinkModal(null)}
+                  className="w-full py-2.5 px-4 rounded-full font-sans font-bold text-xs tracking-wider uppercase text-white/80 hover:text-white bg-white/10 hover:bg-white/20 transition-all border border-white/10 cursor-pointer"
+                >
+                  {translations.multiLinksModal?.close || 'Close'}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

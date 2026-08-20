@@ -6,6 +6,16 @@ export type BusinessLanguage = 'en' | 'fr' | 'ar' | 'de' | 'es' | 'nl';
 
 export type CardLayout = 'design1' | 'design2' | 'design3' | 'business';
 
+export interface ExtraLinkItem {
+  id?: string;
+  value: string;
+  label?: string;
+}
+
+export type MultiLinksMap = {
+  [key: string]: ExtraLinkItem[];
+};
+
 export interface BusinessCard {
   slug: string;
   name: string;          // Business Name
@@ -54,6 +64,21 @@ export interface BusinessCard {
   website_label?: string;     // Default: "Website"
   mobile_label?: string;      // Default: "Call Us"
   landline_label?: string;    // Default: "Office Line"
+
+  // Dedicated Sub-Labels for Primary Link (Inside Pop-up Window when multi-links exist)
+  instagram_sub_label?: string;
+  facebook_sub_label?: string;
+  tiktok_sub_label?: string;
+  snapchat_sub_label?: string;
+  linkedin_sub_label?: string;
+  twitter_sub_label?: string;
+  youtube_sub_label?: string;
+  whatsapp_sub_label?: string;
+  email_sub_label?: string;
+  address_sub_label?: string;
+  website_sub_label?: string;
+  phone_sub_label?: string;
+  landline_sub_label?: string;
   // QR Code Settings
   qr_logo_enabled?: boolean;  // Stores whether this business's QR code should have their logo embedded (default: true)
 
@@ -74,5 +99,8 @@ export interface BusinessCard {
   quick_action_1?: string;
   quick_action_2?: string;
   quick_action_3?: string;
+
+  // Multi Links & Numbers (for Business Card Layout)
+  multi_links?: MultiLinksMap;
 }
 

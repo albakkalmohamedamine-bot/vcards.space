@@ -3,6 +3,39 @@ import { supabase } from './supabase';
 
 // Convert DB row to BusinessCard object
 function mapRowToCard(row: any): BusinessCard {
+  // Normalize multi_links while strictly preserving the user-defined display order
+  let parsedMultiLinks: Record<string, any> = {};
+  if (row.multi_links) {
+    if (typeof row.multi_links === 'string') {
+      try {
+        parsedMultiLinks = JSON.parse(row.multi_links);
+      } catch {
+        parsedMultiLinks = {};
+      }
+    } else if (typeof row.multi_links === 'object') {
+      parsedMultiLinks = { ...row.multi_links };
+    }
+  }
+
+  // Ensure each channel array maintains exact sequential order
+  const cleanMultiLinks: Record<string, Array<{ id: string; value: string; label: string }>> = {};
+  const channelKeys = ['instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube', 'whatsapp', 'email', 'address', 'website', 'phone', 'landline'];
+  
+  channelKeys.forEach(channel => {
+    const rawList = parsedMultiLinks[channel];
+    if (Array.isArray(rawList)) {
+      cleanMultiLinks[channel] = rawList
+        .filter(item => item && typeof item === 'object')
+        .map((item, idx) => ({
+          id: item.id || `sub_${channel}_${idx}_${Date.now()}`,
+          value: item.value || item.url || '',
+          label: item.label || '',
+        }));
+    }
+  });
+
+  const primaryLabels = parsedMultiLinks._primary_labels || {};
+
   return {
     slug: row.slug,
     name: row.name || '',
@@ -59,11 +92,82 @@ function mapRowToCard(row: any): BusinessCard {
     quick_action_1: row.quick_action_1 || '',
     quick_action_2: row.quick_action_2 || '',
     quick_action_3: row.quick_action_3 || '',
+    instagram_sub_label: primaryLabels.instagram || parsedMultiLinks.instagram_sub_label || row.instagram_sub_label || '',
+    facebook_sub_label: primaryLabels.facebook || parsedMultiLinks.facebook_sub_label || row.facebook_sub_label || '',
+    tiktok_sub_label: primaryLabels.tiktok || parsedMultiLinks.tiktok_sub_label || row.tiktok_sub_label || '',
+    snapchat_sub_label: primaryLabels.snapchat || parsedMultiLinks.snapchat_sub_label || row.snapchat_sub_label || '',
+    linkedin_sub_label: primaryLabels.linkedin || parsedMultiLinks.linkedin_sub_label || row.linkedin_sub_label || '',
+    twitter_sub_label: primaryLabels.twitter || parsedMultiLinks.twitter_sub_label || row.twitter_sub_label || '',
+    youtube_sub_label: primaryLabels.youtube || parsedMultiLinks.youtube_sub_label || row.youtube_sub_label || '',
+    whatsapp_sub_label: primaryLabels.whatsapp || parsedMultiLinks.whatsapp_sub_label || row.whatsapp_sub_label || '',
+    email_sub_label: primaryLabels.email || parsedMultiLinks.email_sub_label || row.email_sub_label || '',
+    address_sub_label: primaryLabels.address || parsedMultiLinks.address_sub_label || row.address_sub_label || '',
+    website_sub_label: primaryLabels.website || parsedMultiLinks.website_sub_label || row.website_sub_label || '',
+    phone_sub_label: primaryLabels.phone || parsedMultiLinks.phone_sub_label || row.phone_sub_label || '',
+    landline_sub_label: primaryLabels.landline || parsedMultiLinks.landline_sub_label || row.landline_sub_label || '',
+    multi_links: {
+      ...parsedMultiLinks,
+      ...cleanMultiLinks,
+    },
   };
 }
 
 // Convert BusinessCard object to DB row
 function mapCardToRow(card: BusinessCard) {
+  // Store primary sub-labels & maintain ordered sub-button array inside multi_links JSON
+  const multiLinksPayload: Record<string, any> = {};
+  const primaryLabelsMap: Record<string, string> = {};
+
+  const channelKeys = [
+    'instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube',
+    'whatsapp', 'email', 'address', 'website', 'phone', 'landline'
+  ];
+
+  // 1. Maintain user-specified order of additional sub-buttons
+  const rawMulti = card.multi_links;
+  if (rawMulti && typeof rawMulti === 'object') {
+    channelKeys.forEach(channel => {
+      const list = rawMulti[channel];
+      if (Array.isArray(list)) {
+        // Keep in exact display order set by user
+        multiLinksPayload[channel] = list.map((item, idx) => ({
+          id: item.id || `sub_${channel}_${idx}`,
+          value: item.value || (item as any).url || '',
+          label: item.label || '',
+        }));
+      }
+    });
+  }
+
+  // 2. Map primary sub-labels for sub-button #1 inside the modal
+  const subLabelMap: Record<string, string | undefined> = {
+    instagram: card.instagram_sub_label,
+    facebook: card.facebook_sub_label,
+    tiktok: card.tiktok_sub_label,
+    snapchat: card.snapchat_sub_label,
+    linkedin: card.linkedin_sub_label,
+    twitter: card.twitter_sub_label,
+    youtube: card.youtube_sub_label,
+    whatsapp: card.whatsapp_sub_label,
+    email: card.email_sub_label,
+    address: card.address_sub_label,
+    website: card.website_sub_label,
+    phone: card.phone_sub_label,
+    landline: card.landline_sub_label,
+  };
+
+  channelKeys.forEach(channel => {
+    const subVal = subLabelMap[channel];
+    if (subVal && subVal.trim()) {
+      primaryLabelsMap[channel] = subVal.trim();
+      multiLinksPayload[`${channel}_sub_label`] = subVal.trim();
+    }
+  });
+
+  if (Object.keys(primaryLabelsMap).length > 0) {
+    multiLinksPayload._primary_labels = primaryLabelsMap;
+  }
+
   return {
     slug: card.slug,
     name: card.name || '',
@@ -120,6 +224,7 @@ function mapCardToRow(card: BusinessCard) {
     quick_action_1: card.quick_action_1 || null,
     quick_action_2: card.quick_action_2 || null,
     quick_action_3: card.quick_action_3 || null,
+    multi_links: multiLinksPayload,
   };
 }
 

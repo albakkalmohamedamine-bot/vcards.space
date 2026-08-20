@@ -76,6 +76,10 @@ export const TRANSLATIONS = {
     adminDashboard: 'Admin Dashboard',
     loadingCard: 'Loading Card...',
     reviewUs: 'Review us on',
+    multiLinksModal: {
+      selectOption: 'Choose an option',
+      close: 'Close',
+    },
     deliveryModal: {
       title: 'Delivery Contact',
       question: (name: string) => `Do you want to download the delivery contact for ${name} to your phone?`,
@@ -178,6 +182,10 @@ export const TRANSLATIONS = {
     adminDashboard: 'Tableau de bord Admin',
     loadingCard: 'Chargement de la carte...',
     reviewUs: 'Laissez un avis sur',
+    multiLinksModal: {
+      selectOption: 'Choisissez une option',
+      close: 'Fermer',
+    },
     deliveryModal: {
       title: 'Contact Livraison',
       question: (name: string) => `Voulez-vous télécharger le contact de livraison de ${name} sur votre téléphone ?`,
@@ -280,6 +288,10 @@ export const TRANSLATIONS = {
     adminDashboard: 'لوحة التحكم',
     loadingCard: 'جاري تحميل البطاقة...',
     reviewUs: 'قيّمنا على',
+    multiLinksModal: {
+      selectOption: 'اختر خياراً للتواصل أو الفتح',
+      close: 'إغلاق',
+    },
     deliveryModal: {
       title: 'جهة اتصال التوصيل',
       question: (name: string) => `هل ترغب في تحميل جهة اتصال التوصيل الخاصة بـ ${name} إلى هاتفك؟`,
@@ -382,6 +394,10 @@ export const TRANSLATIONS = {
     adminDashboard: 'Admin-Dashboard',
     loadingCard: 'Karte wird geladen...',
     reviewUs: 'Bewerten Sie uns auf',
+    multiLinksModal: {
+      selectOption: 'Wählen Sie eine Option',
+      close: 'Schließen',
+    },
     deliveryModal: {
       title: 'Lieferkontakt',
       question: (name: string) => `Möchten Sie den Lieferkontakt für ${name} auf Ihr Telefon herunterladen?`,
@@ -484,6 +500,10 @@ export const TRANSLATIONS = {
     adminDashboard: 'Panel de administración',
     loadingCard: 'Cargando tarjeta...',
     reviewUs: 'Valóranos en',
+    multiLinksModal: {
+      selectOption: 'Elige una opción',
+      close: 'Cerrar',
+    },
     deliveryModal: {
       title: 'Contacto de entrega',
       question: (name: string) => `¿Deseas descargar el contacto de entrega de ${name} en tu teléfono?`,
@@ -586,6 +606,10 @@ export const TRANSLATIONS = {
     adminDashboard: 'Admin Dashboard',
     loadingCard: 'Kaart laden...',
     reviewUs: 'Beoordeel ons op',
+    multiLinksModal: {
+      selectOption: 'Kies een optie',
+      close: 'Sluiten',
+    },
     deliveryModal: {
       title: 'Bezorgcontact',
       question: (name: string) => `Wil je het bezorgcontact voor ${name} downloaden naar je telefoon?`,
