@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { Session, User } from '@supabase/supabase-js';
 
-// Supabase Authentication enabled for production
+// Authentication active for production. Enforces secure Supabase login on all admin routes.
 export const AUTH_DISABLED_FOR_DEVELOPMENT = false;
 
 const DEV_MOCK_USER: User = {
@@ -95,6 +95,9 @@ export async function signInWithEmail(
 }
 
 export async function signOut(): Promise<{ success: boolean }> {
+  if (AUTH_DISABLED_FOR_DEVELOPMENT) {
+    return { success: true };
+  }
   try {
     await supabase.auth.signOut();
     return { success: true };

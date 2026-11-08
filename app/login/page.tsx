@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSession, signInWithEmail } from '@/lib/auth';
+import { getSession, signInWithEmail, AUTH_DISABLED_FOR_DEVELOPMENT } from '@/lib/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Mail, 
@@ -24,13 +24,37 @@ export default function LoginPage() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Security: prevent Open Redirect vulnerabilities by strictly validating internal paths
+  function getSafeRedirectUrl(target: string | null): string {
+    if (!target) return '/';
+    const trimmed = target.trim();
+    // Must start with single '/', not '//', not '/\\', and contain no protocol scheme
+    if (
+      trimmed.startsWith('/') &&
+      !trimmed.startsWith('//') &&
+      !trimmed.startsWith('/\\') &&
+      !trimmed.includes('://') &&
+      !trimmed.toLowerCase().startsWith('/javascript:')
+    ) {
+      return trimmed;
+    }
+    return '/';
+  }
+
   useEffect(() => {
     let isMounted = true;
 
     async function checkExistingAuth() {
+      if (AUTH_DISABLED_FOR_DEVELOPMENT) {
+        router.replace('/');
+        return;
+      }
+
       const session = await getSession();
       if (session) {
-        router.replace('/admin');
+        const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const target = getSafeRedirectUrl(params?.get('redirect') || '/');
+        router.replace(target);
       } else {
         if (isMounted) {
           setIsCheckingAuth(false);
@@ -58,7 +82,9 @@ export default function LoginPage() {
     try {
       const result = await signInWithEmail(email, password);
       if (result.success) {
-        router.push('/admin');
+        const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const target = getSafeRedirectUrl(params?.get('redirect') || '/');
+        router.push(target);
       } else {
         setError(result.error || 'Invalid credentials. Please verify your email and password.');
         setIsLoading(false);

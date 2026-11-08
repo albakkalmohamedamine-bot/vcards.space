@@ -102,5 +102,12 @@ export interface BusinessCard {
 
   // Multi Links & Numbers (for Business Card Layout)
   multi_links?: MultiLinksMap;
+
+  // Background Options (Business Design Layout)
+  bg_type?: 'gradient' | 'image';
+  bg_niche?: string;
+  bg_custom_niche?: string;
+  bg_image_mode?: 'auto' | 'custom';
+  bg_image_url?: string;
 }
 

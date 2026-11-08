@@ -34,7 +34,7 @@ export const AdminQRCodeGenerator: React.FC<AdminQRCodeGeneratorProps> = ({
     }
   }, []);
 
-  const publicCardUrl = slug ? `${origin}/card/${slug}` : `${origin}/card/demo`;
+  const publicCardUrl = slug ? `${origin}/card/${slug}?src=qr` : `${origin}/card/demo?src=qr`;
 
   // Provide brief visual loading feedback when slug, logo, or logo toggle changes
   useEffect(() => {

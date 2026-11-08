@@ -7,6 +7,9 @@ import { BusinessCard, PrimaryActionType, BusinessLanguage } from '@/lib/types';
 import { getCardTranslation, TRANSLATIONS } from '@/lib/translations';
 import { downloadVCard, downloadDeliveryVCard } from '@/lib/vcard';
 import { GoogleLogo } from '@/components/GoogleLogo';
+import { getNicheBackgroundImage } from '@/lib/businessNiches';
+import { QRCodeCanvas } from 'qrcode.react';
+import { trackCardEvent, getVisitorSourceFromUrl } from '@/lib/analytics';
 import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
 import { 
   Phone, 
@@ -27,6 +30,7 @@ import {
   ArrowUpRight,
   Share2,
   Check,
+  Copy,
   Download,
   Smartphone,
   X,
@@ -99,6 +103,71 @@ const LANGUAGES: { code: BusinessLanguage; flag: string; label: string }[] = [
   { code: 'nl', flag: '🇳🇱', label: 'Nederlands' },
 ];
 
+const LANGUAGE_SECTION_LABEL: Record<BusinessLanguage, string> = {
+  en: 'Language',
+  fr: 'Langue',
+  ar: 'اللغة',
+  es: 'Idioma',
+  de: 'Sprache',
+  nl: 'Taal',
+};
+
+function isLightAccent(colorStr: string): boolean {
+  if (!colorStr) return false;
+  const rgbMatch = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (rgbMatch) {
+    const r = parseInt(rgbMatch[1], 10);
+    const g = parseInt(rgbMatch[2], 10);
+    const b = parseInt(rgbMatch[3], 10);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.68;
+  }
+  let hex = colorStr.replace('#', '').trim();
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length === 6) {
+    const r = parseInt(hex.substring(0, 2), 16) || 0;
+    const g = parseInt(hex.substring(2, 4), 16) || 0;
+    const b = parseInt(hex.substring(4, 6), 16) || 0;
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.68;
+  }
+  return false;
+}
+
+// Security Helper: Strictly whitelist safe external URL schemes (http:, https:) to prevent DOM XSS
+function getSafeExternalUrl(raw?: string | null, fallback = ''): string {
+  if (!raw) return fallback;
+  const trimmed = raw.trim();
+  if (!trimmed) return fallback;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.startsWith('javascript:') ||
+    lower.startsWith('data:') ||
+    lower.startsWith('vbscript:') ||
+    lower.startsWith('file:') ||
+    lower.startsWith('blob:')
+  ) {
+    return fallback;
+  }
+  if (lower.startsWith('http://') || lower.startsWith('https://')) {
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return trimmed;
+      }
+    } catch {
+      return fallback;
+    }
+  }
+  try {
+    const parsed = new URL(`https://${trimmed}`);
+    if (parsed.protocol === 'https:' && parsed.hostname.includes('.')) {
+      return `https://${trimmed}`;
+    }
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
 function hasValueForAction(card: Partial<BusinessCard>, k: string | undefined): boolean {
   if (!k) return false;
   if (k === 'phone') return Boolean(card.phone);
@@ -158,9 +227,9 @@ function Design3CardView({
     }
   }, [card.cover_photo_url]);
 
-  // Google Maps URL derivation
+  // Google Maps URL derivation with safe scheme validation
   const mapUrl = card.address_type === 'text' && card.google_maps
-    ? (card.google_maps.startsWith('http') ? card.google_maps : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.google_maps)}`)
+    ? (card.google_maps.startsWith('http') ? getSafeExternalUrl(card.google_maps, '#') : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.google_maps)}`)
     : card.address
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.address)}`
       : '#';
@@ -609,7 +678,7 @@ function Design3CardView({
         {card.rate_us_enabled !== false && (
           <div className="mt-8 pt-6 border-t border-slate-200/60 flex flex-col items-center text-center">
             <a
-              href={card.review_url?.trim() || card.google_maps?.trim() || (card.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.address)}` : '') || 'https://maps.google.com'}
+              href={getSafeExternalUrl(card.review_url) || getSafeExternalUrl(card.google_maps) || (card.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.address)}` : '') || 'https://maps.google.com'}
               target="_blank"
               rel="noopener noreferrer"
               className="group w-full max-w-[280px] py-4 px-5 bg-transparent flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
@@ -652,8 +721,10 @@ export default function CardClient({
 
   const cardDefaultLang: BusinessLanguage = (card?.language as BusinessLanguage) || 'en';
   const [currentLang, setCurrentLang] = useState<BusinessLanguage>(cardDefaultLang);
-  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
-  const langDropdownRef = useRef<HTMLDivElement>(null);
+  const [cardMenuOpen, setCardMenuOpen] = useState(false);
+  const cardMenuRef = useRef<HTMLDivElement>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const closeShareBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (card?.language) {
@@ -663,13 +734,32 @@ export default function CardClient({
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (langDropdownRef.current && !langDropdownRef.current.contains(e.target as Node)) {
-        setLangDropdownOpen(false);
+      if (cardMenuRef.current && !cardMenuRef.current.contains(e.target as Node)) {
+        setCardMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setCardMenuOpen(false);
+        setIsShareModalOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
+
+  useEffect(() => {
+    if (isShareModalOpen) {
+      const timer = setTimeout(() => {
+        closeShareBtnRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isShareModalOpen]);
 
   const isOriginalLang = currentLang === cardDefaultLang;
   const translations = getCardTranslation(currentLang);
@@ -730,19 +820,62 @@ export default function CardClient({
     };
   }, []);
 
+  const trackAction = (target: string, label?: string) => {
+    if (!card?.slug || isPreview) return;
+    const src = getVisitorSourceFromUrl();
+    trackCardEvent({
+      card_slug: card.slug,
+      event_type: 'click',
+      source: src,
+      action_target: target,
+      action_label: label,
+    });
+  };
+
+  useEffect(() => {
+    if (card?.slug && !isPreview) {
+      const src = getVisitorSourceFromUrl();
+      trackCardEvent({
+        card_slug: card.slug,
+        event_type: 'view',
+        source: src,
+      });
+    }
+  }, [card?.slug, isPreview]);
+
   const handleSaveClick = () => {
     if (card) {
+      trackAction('vcard', 'Save Contact');
       downloadVCard(card);
     }
   };
 
-  const handleShare = async () => {
+  const publicBaseUrl = typeof window !== 'undefined'
+    ? (card?.slug ? `${window.location.origin}/card/${card.slug}` : window.location.href.split('#')[0].split('?')[0])
+    : (card?.slug ? `/card/${card.slug}` : '');
+
+  const publicCardUrl = publicBaseUrl;
+  const publicQrUrl = card?.slug && typeof window !== 'undefined' ? `${window.location.origin}/card/${card.slug}?src=qr` : publicCardUrl;
+  const publicShareUrl = card?.slug && typeof window !== 'undefined' ? `${window.location.origin}/card/${card.slug}?src=share` : publicCardUrl;
+
+  const handleCopyLink = async () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(publicShareUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy link:', err);
+      }
+    }
+  };
+
+  const handleNativeShare = async () => {
     if (!card) return;
-    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
     const shareData = {
       title: card.name || 'Digital Business Card',
       text: card.tagline ? `${card.name} - ${card.tagline}` : card.name,
-      url: shareUrl,
+      url: publicShareUrl,
     };
 
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -753,14 +886,8 @@ export default function CardClient({
           console.error('Error sharing card:', err);
         }
       }
-    } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        console.error('Failed to copy link:', err);
-      }
+    } else {
+      handleCopyLink();
     }
   };
 
@@ -977,36 +1104,38 @@ export default function CardClient({
     if (c.menu_pdf) {
       const pdfUrl = c.menu_pdf;
       const menuLabel = getLocalizedRowLabel(c.menu_label, 'menu', cardLang);
-      if (pdfUrl.startsWith('data:')) {
+      if (pdfUrl.startsWith('data:application/pdf;base64,')) {
         rows.push({
           id: 'menu_pdf',
           label: menuLabel,
           icon: <RestaurantMenuIcon className="w-5 h-5" />,
           onClick: () => {
             try {
-              const arr = pdfUrl.split(',');
-              const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/pdf';
-              const bstr = atob(arr[1]);
+              const base64Data = pdfUrl.slice('data:application/pdf;base64,'.length);
+              const bstr = atob(base64Data);
               let n = bstr.length;
               const u8arr = new Uint8Array(n);
               while (n--) {
                 u8arr[n] = bstr.charCodeAt(n);
               }
-              const blob = new Blob([u8arr], { type: mime });
+              const blob = new Blob([u8arr], { type: 'application/pdf' });
               const blobUrl = URL.createObjectURL(blob);
-              window.open(blobUrl, '_blank');
+              window.open(blobUrl, '_blank', 'noopener,noreferrer');
             } catch {
-              window.open(pdfUrl, '_blank');
+              // Ignore invalid blob error
             }
           }
         });
-      } else {
-        rows.push({
-          id: 'menu_pdf',
-          label: menuLabel,
-          icon: <RestaurantMenuIcon className="w-5 h-5" />,
-          url: pdfUrl,
-        });
+      } else if (pdfUrl.startsWith('http://') || pdfUrl.startsWith('https://')) {
+        const safeUrl = getSafeExternalUrl(pdfUrl);
+        if (safeUrl) {
+          rows.push({
+            id: 'menu_pdf',
+            label: menuLabel,
+            icon: <RestaurantMenuIcon className="w-5 h-5" />,
+            url: safeUrl,
+          });
+        }
       }
     }
 
@@ -1088,7 +1217,7 @@ export default function CardClient({
 
     const showRateUs = c.rate_us_enabled !== false;
     if (showRateUs) {
-      const reviewUrl = c.review_url?.trim() || c.google_maps?.trim() || (c.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}` : '') || 'https://maps.google.com';
+      const reviewUrl = getSafeExternalUrl(c.review_url) || getSafeExternalUrl(c.google_maps) || (c.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}` : '') || 'https://maps.google.com';
       rows.push({
         id: 'rate_us',
         label: getLocalizedRowLabel(c.rate_us_label, 'rateUs', cardLang),
@@ -1117,7 +1246,7 @@ export default function CardClient({
       return '#';
     }
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return trimmed;
+      return getSafeExternalUrl(trimmed, '#');
     }
     return `https://maps.google.com/?q=${encodeURIComponent(trimmed)}`;
   };
@@ -1125,16 +1254,26 @@ export default function CardClient({
   const getActionHref = (actionType: string, value: string) => {
     if (!value) return '#';
     const trimmed = value.trim();
-    if (trimmed.toLowerCase().startsWith('javascript:') || trimmed.toLowerCase().startsWith('data:')) {
+    const lower = trimmed.toLowerCase();
+    if (
+      lower.startsWith('javascript:') ||
+      lower.startsWith('data:') ||
+      lower.startsWith('vbscript:') ||
+      lower.startsWith('file:') ||
+      lower.startsWith('blob:')
+    ) {
       return '#';
     }
     switch (actionType) {
       case 'delivery_number':
       case 'phone': 
-      case 'landline': return `tel:${trimmed.replace(/[^0-9+]/g, '')}`;
+      case 'landline': {
+        const cleanTel = trimmed.replace(/[^0-9+]/g, '');
+        return cleanTel ? `tel:${cleanTel}` : '#';
+      }
       case 'whatsapp': {
-        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-          return trimmed;
+        if (lower.startsWith('http://') || lower.startsWith('https://')) {
+          return getSafeExternalUrl(trimmed, '#');
         }
         let cleanNumber = trimmed.replace(/[^0-9]/g, '');
         if (cleanNumber.startsWith('00')) {
@@ -1142,23 +1281,26 @@ export default function CardClient({
         }
         return cleanNumber ? `https://wa.me/${cleanNumber}` : '#';
       }
-      case 'email': return `mailto:${encodeURIComponent(trimmed)}`;
+      case 'email': {
+        const cleanEmail = trimmed.replace(/[\r\n\s]/g, '');
+        return cleanEmail ? `mailto:${encodeURIComponent(cleanEmail)}` : '#';
+      }
       case 'address': {
-        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-          return trimmed;
+        if (lower.startsWith('http://') || lower.startsWith('https://')) {
+          return getSafeExternalUrl(trimmed, '#');
         }
         return `https://maps.google.com/?q=${encodeURIComponent(trimmed)}`;
       }
-      case 'website': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
-      case 'instagram': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://instagram.com/${trimmed.replace('@', '')}`;
-      case 'facebook': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://facebook.com/${trimmed}`;
-      case 'tiktok': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://tiktok.com/@${trimmed.replace('@', '')}`;
-      case 'snapchat': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://snapchat.com/add/${trimmed.replace('@', '')}`;
-      case 'linkedin': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://linkedin.com/${trimmed.startsWith('in/') || trimmed.startsWith('company/') ? trimmed : `in/${trimmed}`}`;
+      case 'website': return getSafeExternalUrl(trimmed, '#');
+      case 'instagram': return lower.startsWith('http://') || lower.startsWith('https://') ? getSafeExternalUrl(trimmed, '#') : `https://instagram.com/${trimmed.replace('@', '')}`;
+      case 'facebook': return lower.startsWith('http://') || lower.startsWith('https://') ? getSafeExternalUrl(trimmed, '#') : `https://facebook.com/${trimmed}`;
+      case 'tiktok': return lower.startsWith('http://') || lower.startsWith('https://') ? getSafeExternalUrl(trimmed, '#') : `https://tiktok.com/@${trimmed.replace('@', '')}`;
+      case 'snapchat': return lower.startsWith('http://') || lower.startsWith('https://') ? getSafeExternalUrl(trimmed, '#') : `https://snapchat.com/add/${trimmed.replace('@', '')}`;
+      case 'linkedin': return lower.startsWith('http://') || lower.startsWith('https://') ? getSafeExternalUrl(trimmed, '#') : `https://linkedin.com/${trimmed.startsWith('in/') || trimmed.startsWith('company/') ? trimmed : `in/${trimmed}`}`;
       case 'twitter':
-      case 'x': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://x.com/${trimmed.replace('@', '')}`;
-      case 'youtube': return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://youtube.com/${trimmed.startsWith('@') ? trimmed : `@${trimmed}`}`;
-      default: return trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
+      case 'x': return lower.startsWith('http://') || lower.startsWith('https://') ? getSafeExternalUrl(trimmed, '#') : `https://x.com/${trimmed.replace('@', '')}`;
+      case 'youtube': return lower.startsWith('http://') || lower.startsWith('https://') ? getSafeExternalUrl(trimmed, '#') : `https://youtube.com/${trimmed.startsWith('@') ? trimmed : `@${trimmed}`}`;
+      default: return getSafeExternalUrl(trimmed, '#');
     }
   };
 
@@ -1204,89 +1346,68 @@ export default function CardClient({
   const themeColor = card.themeColor || '#1B2A4A';
   const layout = card.layout || 'design1';
 
+  // Resolve background options for Business Layout
+  const isBusinessLayout = layout === 'business';
+  const isImageBgMode = card.bg_type === 'image';
+  const resolvedBgImage = card.bg_image_url || (isImageBgMode ? getNicheBackgroundImage(card.bg_niche) : '');
+  const hasActiveImageBg = isBusinessLayout && (isImageBgMode || Boolean(card.bg_image_url)) && Boolean(resolvedBgImage);
+  const cardAccent = card.themeColor || (hasActiveImageBg ? 'rgba(255, 255, 255, 0.9)' : themeColor);
+  const isAccentLight = isLightAccent(cardAccent);
+
+  // Business Card button styling: When background is an image, use subtle sheer dark glass with minimal blur (2px)
+  // so the photo is not obscured or smeared in a strong milky white cloud.
+  // When background is a color gradient, preserve the original clean 12% white glass with 6px blur.
+  const businessRowButtonStyle: React.CSSProperties = {
+    backgroundColor: hasActiveImageBg ? 'rgba(0, 0, 0, 0.28)' : 'rgba(255, 255, 255, 0.12)',
+    backdropFilter: hasActiveImageBg ? 'blur(2px)' : 'blur(6px)',
+    WebkitBackdropFilter: hasActiveImageBg ? 'blur(2px)' : 'blur(6px)',
+    border: hasActiveImageBg ? '1px solid rgba(255, 255, 255, 0.16)' : '1px solid rgba(255, 255, 255, 0.20)',
+    borderRadius: '9999px',
+  };
+  const businessButtonHoverClass = hasActiveImageBg ? 'hover:bg-white/10' : 'hover:bg-white/20';
+  const businessButtonShadowClass = hasActiveImageBg ? 'shadow-md' : 'shadow-lg';
+
   const MainWrapper = isPreview ? 'div' : 'main';
   const CardWrapper = isPreview ? 'div' : motion.div;
 
+  const mainBgClass = isPreview 
+    ? "w-full h-full font-sans text-slate-900 text-left" 
+    : (layout === 'business' && hasActiveImageBg)
+      ? "min-h-screen bg-[#080c14] sm:bg-slate-50 flex flex-col justify-start items-center p-0 sm:p-6 font-sans relative"
+      : "min-h-screen bg-slate-50 flex flex-col justify-start items-center p-0 sm:p-6 font-sans relative";
+
   return (
-    <MainWrapper className={isPreview ? "w-full h-full font-sans text-slate-900 text-left" : "min-h-screen bg-slate-50 flex flex-col justify-start items-center p-0 sm:p-6 font-sans"}>
+    <MainWrapper className={mainBgClass}>
+      {/* Fixed Fullscreen Background for Business Layout on Mobile Viewport */}
+      {!isPreview && layout === 'business' && hasActiveImageBg && resolvedBgImage && (
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden sm:hidden">
+          <div 
+            className="w-full h-full bg-cover bg-center"
+            style={{ 
+              backgroundImage: `url("${resolvedBgImage}")`,
+              filter: 'brightness(0.75)',
+              WebkitFilter: 'brightness(0.75)',
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/40 to-black/85" />
+        </div>
+      )}
+
       <CardWrapper 
         {...(!isPreview ? {
-          initial: { opacity: 0, y: 24, scale: 0.98 },
-          animate: { opacity: 1, y: 0, scale: 1 },
+          initial: { opacity: 0, ...(hasActiveImageBg ? {} : { y: 24, scale: 0.98 }) },
+          animate: { opacity: 1, ...(hasActiveImageBg ? {} : { y: 0, scale: 1 }) },
           transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] }
         } : {})}
         dir={currentLang === 'ar' ? 'rtl' : 'ltr'}
         className={isPreview ? `w-full ${layout === 'business' ? '' : 'bg-white'} rounded-[28px] overflow-hidden relative border border-slate-100 shadow-xs pb-6 text-left` : `w-full max-w-[440px] sm:max-w-[460px] ${layout === 'business' ? '' : 'bg-white'} sm:rounded-[36px] min-h-screen sm:min-h-0 sm:shadow-2xl overflow-hidden relative border-x sm:border border-slate-200/60 pb-6`}
         style={layout === 'business' ? {
-          background: `linear-gradient(180deg, ${themeColor} 0%, #080c14 100%)`
+          background: hasActiveImageBg
+            ? 'transparent'
+            : `linear-gradient(180deg, ${themeColor} 0%, #080c14 100%)`
         } : undefined}
       >
         
-        {/* Public Language Switcher Toggle (Compact Dropdown) */}
-        {(() => {
-          const activeLangObj = LANGUAGES.find((l) => l.code === currentLang) || LANGUAGES[0];
-          return (
-            <div 
-              ref={langDropdownRef}
-              className="absolute top-3.5 left-3.5 sm:top-4 sm:left-4 z-[60]"
-              dir="ltr"
-            >
-              <button
-                type="button"
-                onClick={() => setLangDropdownOpen((prev) => !prev)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full shadow-md backdrop-blur-md border transition-all cursor-pointer ${
-                  layout === 'business'
-                    ? 'bg-white/95 text-slate-800 border-slate-200 hover:bg-slate-50'
-                    : 'bg-black/40 text-white border-white/20 hover:bg-black/50'
-                }`}
-                title={activeLangObj.label}
-                aria-label="Change Language"
-              >
-                <span className="text-base sm:text-lg leading-none">{activeLangObj.flag}</span>
-                <span className="text-xs font-bold uppercase font-mono tracking-wider">{activeLangObj.code}</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${langDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              <AnimatePresence>
-                {langDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -6, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-full left-0 mt-1.5 w-36 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200/80 p-1.5 z-[70] text-slate-800 font-sans"
-                  >
-                    {LANGUAGES.map((l) => {
-                      const isActive = currentLang === l.code;
-                      return (
-                        <button
-                          key={l.code}
-                          type="button"
-                          onClick={() => {
-                            setCurrentLang(l.code);
-                            setLangDropdownOpen(false);
-                          }}
-                          className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
-                            isActive
-                              ? 'bg-indigo-50 text-indigo-700 font-bold'
-                              : 'hover:bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span className="text-base leading-none">{l.flag}</span>
-                            <span>{l.label}</span>
-                          </span>
-                          {isActive && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
-                        </button>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          );
-        })()}
-
         {/* Dynamic Island Animation for NFC Tap */}
         <AnimatePresence>
           {islandState !== 'hidden' && (
@@ -1341,50 +1462,182 @@ export default function CardClient({
           )}
         </AnimatePresence>
 
-        {/* Top Floating Share Button */}
-        <motion.button 
-          type="button"
-          onClick={handleShare}
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2, duration: 0.3 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className={`absolute top-3.5 right-3.5 sm:top-4 sm:right-4 z-30 flex items-center justify-center p-2.5 rounded-full shadow-xs transition-all active:scale-95 cursor-pointer ${
-            layout === 'business'
-              ? 'bg-slate-100/90 hover:bg-slate-200/90 text-slate-700 border border-slate-200/80'
-              : 'bg-black/20 hover:bg-black/30 backdrop-blur-md text-white border border-white/20'
-          }`}
-          title={translations.shareCard || 'Share Card'}
-          aria-label={translations.shareCard || 'Share Card'}
+        {/* Combined Action & Language Menu Button - UNIVERSAL FOR ALL CARD DESIGNS */}
+        <div 
+          ref={cardMenuRef}
+          className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 z-[70]"
+          dir="ltr"
+          style={{
+            '--card-accent': cardAccent,
+          } as React.CSSProperties}
         >
-          {copied ? (
-            <Check className={`w-4 h-4 shrink-0 ${layout === 'business' ? 'text-emerald-600' : 'text-emerald-300'}`} />
-          ) : (
-            <Share2 className="w-4 h-4 shrink-0" />
-          )}
-        </motion.button>
+          {/* 1. Trigger button: 40x40 circle with glass style, 44px tap area, accent glow */}
+          <motion.button 
+            type="button"
+            onClick={() => setCardMenuOpen((prev) => !prev)}
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2, duration: 0.25 }}
+            whileHover={{ 
+              scale: 1.05,
+              boxShadow: '0 0 14px color-mix(in srgb, var(--card-accent) 55%, transparent)',
+            }}
+            whileTap={{ scale: 0.92 }}
+            className="relative w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer before:absolute before:-inset-1 before:content-[''] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+            style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.30)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255, 255, 255, 0.20)',
+              boxShadow: cardMenuOpen 
+                ? '0 0 14px color-mix(in srgb, var(--card-accent) 50%, transparent)' 
+                : undefined,
+            }}
+            title="Menu"
+            aria-label="Menu"
+            aria-expanded={cardMenuOpen}
+          >
+            <MoreVertical className="w-5 h-5 text-white" />
+          </motion.button>
+
+          {/* 2. Dropdown panel: Dark translucent glass with 10% accent tint, 220px width, 20px radius */}
+          <AnimatePresence>
+            {cardMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                style={{
+                  transformOrigin: 'top right',
+                  background: 'color-mix(in srgb, var(--card-accent) 10%, rgba(15, 15, 15, 0.72))',
+                  backdropFilter: 'blur(20px) saturate(140%)',
+                  WebkitBackdropFilter: 'blur(20px) saturate(140%)',
+                  borderRadius: '20px',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
+                  boxShadow: '0 12px 32px rgba(0, 0, 0, 0.35)',
+                }}
+                className="absolute top-full right-0 mt-2 w-[220px] max-w-[calc(100vw-32px)] p-2.5 z-[80] font-sans"
+              >
+                {/* Row 1: Share Card (opens Share bottom sheet with QR code) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCardMenuOpen(false);
+                    setIsShareModalOpen(true);
+                  }}
+                  className="w-full h-12 px-2.5 rounded-xl flex items-center justify-between text-[15px] font-medium text-white transition-colors cursor-pointer hover:bg-white/[0.08] active:bg-white/[0.12] group select-none"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div 
+                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--card-accent) 20%, transparent)',
+                      }}
+                    >
+                      <Share2 className="w-4 h-4 text-white" />
+                    </div>
+                    <span className="truncate text-white text-[15px] font-medium leading-none">
+                      {translations.shareCard || 'Share Card'}
+                    </span>
+                  </div>
+                </button>
+
+                {/* Thin Divider (1px rgba(255,255,255,0.10)) */}
+                <div className="my-1.5 h-[1px] w-full bg-white/10" />
+
+                {/* Small Uppercase LANGUAGE Label (11px, letter-spacing 0.1em, 55% white) */}
+                <div className="px-1 pb-1.5 text-[11px] font-mono font-bold uppercase tracking-[0.1em] text-white/55 select-none">
+                  LANGUAGE
+                </div>
+
+                {/* Languages: Compact 2-column grid of pill chips (36px high, flag + name, 13px text) */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  {LANGUAGES.map((l) => {
+                    const isActive = currentLang === l.code;
+                    const isArabic = l.code === 'ar';
+                    return (
+                      <button
+                        key={l.code}
+                        type="button"
+                        onClick={() => {
+                          setCurrentLang(l.code);
+                          setCardMenuOpen(false);
+                        }}
+                        className={`h-9 px-2 rounded-full flex items-center justify-between text-[13px] font-medium transition-all cursor-pointer select-none ${
+                          isActive
+                            ? (isAccentLight ? 'text-white font-semibold drop-shadow-xs' : 'text-white font-semibold')
+                            : 'text-white/80 hover:text-white hover:bg-white/[0.08]'
+                        }`}
+                        style={isActive ? {
+                          backgroundColor: 'color-mix(in srgb, var(--card-accent) 30%, transparent)',
+                          border: '1px solid color-mix(in srgb, var(--card-accent) 70%, transparent)',
+                        } : {
+                          backgroundColor: 'transparent',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                        }}
+                      >
+                        <span 
+                          className="flex items-center gap-1.5 min-w-0 truncate"
+                          dir={isArabic ? 'rtl' : 'ltr'}
+                        >
+                          <span className="text-sm leading-none shrink-0">{l.flag}</span>
+                          <span className="truncate">{l.label}</span>
+                        </span>
+                        {isActive && (
+                          <Check className="w-3.5 h-3.5 text-white shrink-0 ml-1" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Background Layer for Business Layout (Desktop Card & Preview) */}
+        {layout === 'business' && hasActiveImageBg && resolvedBgImage && (
+          <div className={`absolute inset-0 overflow-hidden pointer-events-none z-0 ${!isPreview ? 'hidden sm:block' : ''}`}>
+            <div 
+              className="absolute inset-0 bg-cover bg-center transition-all"
+              style={{ 
+                backgroundImage: `url("${resolvedBgImage}")`,
+                ...(isPreview ? {} : { backgroundAttachment: 'fixed' }),
+                filter: 'brightness(0.75)',
+                WebkitFilter: 'brightness(0.75)',
+              }}
+            />
+            {/* Subtle scrim overlay so text, logo, and frosted buttons have perfect contrast */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/40 to-black/85" />
+          </div>
+        )}
 
         {/* Header Cover Area */}
         {layout === 'business' ? (
           <>
-            {/* Profile / Logo Area for Business on Gradient Background */}
+            {/* Profile / Logo Area for Business on Gradient or Image Background */}
             <motion.div 
               initial={{ opacity: 0, scale: 0.82, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-              className="pt-8 sm:pt-10 flex justify-center px-6"
+              className="pt-8 sm:pt-10 flex justify-center px-6 relative z-10"
             >
               {(() => {
                 const isCircle = (card.avatar_border_radius ?? 50) >= 45;
+                const hasImageBg = hasActiveImageBg;
                 return (
                   <div 
                     className="flex items-center justify-center transition-all duration-300 overflow-hidden w-48 h-48 sm:w-56 sm:h-56"
                     style={{ 
                       backgroundColor: card.logo ? 'transparent' : 'rgba(255, 255, 255, 0.08)',
-                      borderColor: 'transparent',
+                      borderColor: hasImageBg ? 'rgba(255, 255, 255, 0.92)' : 'transparent',
+                      borderWidth: hasImageBg ? '2.5px' : '0px',
+                      borderStyle: hasImageBg ? 'solid' : 'none',
                       borderRadius: isCircle ? '50%' : '22%',
-                      filter: 'drop-shadow(0px 0px 14px rgba(255, 255, 255, 0.36))'
+                      filter: hasImageBg 
+                        ? 'drop-shadow(0px 8px 24px rgba(0, 0, 0, 0.75)) drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.28))'
+                        : 'drop-shadow(0px 0px 14px rgba(255, 255, 255, 0.36))'
                     }}
                   >
                     {card.logo ? (
@@ -1406,7 +1659,7 @@ export default function CardClient({
             </motion.div>
 
             {/* Content Area for Business Layout */}
-            <div className="pt-4 pb-10 px-4 sm:px-6 text-center flex flex-col min-h-[350px]">
+            <div className="pt-4 pb-10 px-4 sm:px-6 text-center flex flex-col min-h-[350px] relative z-10">
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1435,19 +1688,14 @@ export default function CardClient({
                         href={row.url || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={() => trackAction('review', translations.reviewUs)}
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="group relative w-full py-4 sm:py-5 px-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 gap-2 rounded-full shadow-lg"
-                        style={{
-                          backgroundColor: 'rgba(255, 255, 255, 0.12)',
-                          backdropFilter: 'blur(12px)',
-                          WebkitBackdropFilter: 'blur(12px)',
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                          borderRadius: '9999px',
-                        }}
+                        className={`group relative w-full py-4 sm:py-5 px-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 gap-2 rounded-full ${businessButtonShadowClass}`}
+                        style={businessRowButtonStyle}
                       >
                         <span className="text-xs font-bold font-sans tracking-[0.16em] text-white/90 uppercase mb-0.5">
                           {translations.reviewUs}
@@ -1471,20 +1719,17 @@ export default function CardClient({
                       <motion.button
                         key={row.id}
                         type="button"
-                        onClick={row.onClick}
+                        onClick={() => {
+                          trackAction(row.id, row.label);
+                          row.onClick?.();
+                        }}
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="group relative w-full py-4 sm:py-4.5 px-12 sm:px-14 rounded-full flex items-center justify-center text-white transition-all duration-200 hover:bg-white/20 shadow-lg cursor-pointer min-h-[58px] sm:min-h-[62px]"
-                        style={{ 
-                          backgroundColor: 'rgba(255, 255, 255, 0.12)',
-                          backdropFilter: 'blur(12px)',
-                          WebkitBackdropFilter: 'blur(12px)',
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                          borderRadius: '9999px',
-                        }}
+                        className={`group relative w-full py-4 sm:py-4.5 px-12 sm:px-14 rounded-full flex items-center justify-center text-white transition-all duration-200 ${businessButtonHoverClass} ${businessButtonShadowClass} cursor-pointer min-h-[58px] sm:min-h-[62px]`}
+                        style={businessRowButtonStyle}
                       >
                         {/* Un-boxed Pure Vector Icon */}
                         <div className="absolute left-5 sm:left-6 text-white shrink-0 transition-transform duration-200 group-hover:scale-110 [&_svg]:w-5 [&_svg]:h-5 sm:[&_svg]:w-6 sm:[&_svg]:h-6">
@@ -1504,19 +1749,14 @@ export default function CardClient({
                       href={row.url || '#'}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={() => trackAction(row.id, row.label)}
                       initial={{ opacity: 0, y: 16 }}
                       animate={{ opacity: 1, y: 0 }}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       transition={{ duration: 0.2, ease: "easeOut" }}
-                      className="group relative w-full py-4 sm:py-4.5 px-12 sm:px-14 rounded-full flex items-center justify-center text-white transition-all duration-200 hover:bg-white/20 shadow-lg cursor-pointer min-h-[58px] sm:min-h-[62px]"
-                      style={{ 
-                        backgroundColor: 'rgba(255, 255, 255, 0.12)',
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        borderRadius: '9999px',
-                      }}
+                      className={`group relative w-full py-4 sm:py-4.5 px-12 sm:px-14 rounded-full flex items-center justify-center text-white transition-all duration-200 ${businessButtonHoverClass} ${businessButtonShadowClass} cursor-pointer min-h-[58px] sm:min-h-[62px]`}
+                      style={businessRowButtonStyle}
                     >
                       {/* Un-boxed Pure Vector Icon */}
                       <div className="absolute left-5 sm:left-6 text-white shrink-0 transition-transform duration-200 group-hover:scale-110 [&_svg]:w-5 [&_svg]:h-5 sm:[&_svg]:w-6 sm:[&_svg]:h-6">
@@ -1540,14 +1780,8 @@ export default function CardClient({
               >
                 <button 
                   type="button"
-                  className="w-full py-3 px-5 font-bold text-xs text-white border flex items-center justify-center gap-2 transition-all hover:bg-white/20 active:scale-[0.98] cursor-pointer shadow-md"
-                  style={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    borderColor: 'rgba(255, 255, 255, 0.2)',
-                    borderRadius: '9999px',
-                  }}
+                  className={`w-full py-3 px-5 font-bold text-xs text-white border flex items-center justify-center gap-2 transition-all ${businessButtonHoverClass} active:scale-[0.98] cursor-pointer shadow-md`}
+                  style={businessRowButtonStyle}
                   onClick={handleSaveClick}
                 >
                   <UserPlus className="w-4 h-4 shrink-0 text-white" />
@@ -1804,7 +2038,7 @@ export default function CardClient({
                     className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-center"
                   >
                     <a
-                      href={card.review_url?.trim() || card.google_maps?.trim() || (card.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.address)}` : '') || 'https://maps.google.com'}
+                      href={getSafeExternalUrl(card.review_url) || getSafeExternalUrl(card.google_maps) || (card.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.address)}` : '') || 'https://maps.google.com'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="group w-full max-w-[280px] py-4 px-5 bg-transparent flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] active:scale-[0.97] cursor-pointer"
@@ -2115,6 +2349,7 @@ export default function CardClient({
                     target={['whatsapp', 'website', 'instagram', 'facebook', 'tiktok', 'snapchat', 'linkedin', 'twitter', 'youtube', 'address'].includes(activeMultiLinkModal.key) ? '_blank' : undefined}
                     rel="noopener noreferrer"
                     onClick={() => {
+                      trackAction(activeMultiLinkModal.key, item.label);
                       if (!item.url.startsWith('tel:') && !item.url.startsWith('mailto:')) {
                         setActiveMultiLinkModal(null);
                       }
@@ -2124,14 +2359,8 @@ export default function CardClient({
                     transition={{ delay: i * 0.05 }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="group relative w-full py-3.5 sm:py-4 px-10 sm:px-12 rounded-full flex items-center justify-center text-white transition-all duration-200 hover:bg-white/20 shadow-lg cursor-pointer min-h-[54px]"
-                    style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.12)',
-                      backdropFilter: 'blur(12px)',
-                      WebkitBackdropFilter: 'blur(12px)',
-                      border: '1px solid rgba(255, 255, 255, 0.25)',
-                      borderRadius: '9999px',
-                    }}
+                    className={`group relative w-full py-3.5 sm:py-4 px-10 sm:px-12 rounded-full flex items-center justify-center text-white transition-all duration-200 ${businessButtonHoverClass} ${businessButtonShadowClass} cursor-pointer min-h-[54px]`}
+                    style={businessRowButtonStyle}
                   >
                     {/* Un-boxed icon on the left */}
                     <div className="absolute left-4 sm:left-5 text-white shrink-0 transition-transform duration-200 group-hover:scale-110 [&_svg]:w-5 [&_svg]:h-5">
@@ -2239,6 +2468,121 @@ export default function CardClient({
                   className="w-full py-2 px-5 rounded-2xl text-slate-500 font-semibold text-xs hover:text-slate-700 transition-colors cursor-pointer"
                 >
                   {translations.deliveryModal.cancel}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Share Card Bottom Sheet (Modal with QR Code) */}
+        {isShareModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-end justify-center">
+            {/* Dimmed backdrop (rgba(0,0,0,0.5)) */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setIsShareModalOpen(false)}
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs cursor-pointer"
+              aria-hidden="true"
+            />
+
+            {/* Bottom Sheet Card */}
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label={translations.shareCard || "Share Card"}
+              dir={currentLang === 'ar' ? 'rtl' : 'ltr'}
+              initial={{ opacity: 0, y: '100%' }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: '100%' }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                '--card-accent': cardAccent,
+                background: 'rgba(15, 15, 15, 0.80)',
+                backdropFilter: 'blur(20px) saturate(140%)',
+                WebkitBackdropFilter: 'blur(20px) saturate(140%)',
+                borderTop: '1px solid rgba(255, 255, 255, 0.14)',
+                borderTopLeftRadius: '24px',
+                borderTopRightRadius: '24px',
+                boxShadow: '0 -16px 40px rgba(0, 0, 0, 0.50)',
+              } as React.CSSProperties}
+              className="relative z-10 w-full max-w-[440px] sm:max-w-[460px] px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-white font-sans flex flex-col items-center select-none"
+            >
+              {/* 1. Small drag handle at the top */}
+              <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-2 shrink-0 pointer-events-none" />
+
+              {/* Title & Close (X) button */}
+              <div className="w-full flex items-center justify-between mb-3.5 px-0.5">
+                <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                  {translations.shareCard || 'Share Card'}
+                </h3>
+                <button
+                  ref={closeShareBtnRef}
+                  type="button"
+                  onClick={() => setIsShareModalOpen(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* 3. The QR Code: ONLY QR code, black on white rounded tile, 20px radius, 16px padding */}
+              <div className="p-4 bg-white rounded-[20px] shadow-lg flex items-center justify-center shrink-0">
+                <QRCodeCanvas
+                  value={publicQrUrl}
+                  size={168}
+                  level="M"
+                  bgColor="#FFFFFF"
+                  fgColor="#000000"
+                  marginSize={0}
+                />
+              </div>
+
+              {/* 4. Small caption under QR: "Scan to open this card" */}
+              <p className="text-xs text-white/60 font-medium tracking-wide mt-2.5 mb-3.5 text-center">
+                {translations.scanToOpen || 'Scan to open this card'}
+              </p>
+
+              {/* Buttons (pill shape, 48px height, glass style) */}
+              <div className="w-full flex flex-col gap-2 shrink-0">
+                {/* 5. Copy link button (Secondary: transparent, 1px rgba(255,255,255,0.15) border) */}
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="w-full h-12 rounded-full flex items-center justify-center gap-2 text-sm font-semibold text-white transition-all cursor-pointer select-none active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 hover:bg-white/[0.08]"
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                  }}
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span>{translations.copied || 'Copied!'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 text-white" />
+                      <span>{translations.copyLink || 'Copy link'}</span>
+                    </>
+                  )}
+                </button>
+
+                {/* 6. Share via... button (Primary: accent color at 30% with 1px accent border) */}
+                <button
+                  type="button"
+                  onClick={handleNativeShare}
+                  className="w-full h-12 rounded-full flex items-center justify-center gap-2 text-sm font-semibold text-white transition-all cursor-pointer select-none active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 hover:brightness-110"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--card-accent) 30%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--card-accent) 70%, transparent)',
+                  }}
+                >
+                  <Share2 className="w-4 h-4 text-white" />
+                  <span>{translations.shareVia || 'Share via...'}</span>
                 </button>
               </div>
             </motion.div>

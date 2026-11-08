@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCards, saveCard, updateCard, deleteCard, slugify } from '@/lib/storage';
-import { getSession, signOut } from '@/lib/auth';
+import { getSession, signOut, AUTH_DISABLED_FOR_DEVELOPMENT } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { PrimaryActionType, BusinessCard, BusinessLanguage, CardLayout } from '@/lib/types';
 import CardClient from '@/app/card/[slug]/CardClient';
@@ -48,8 +48,13 @@ import {
   Star,
   Wifi,
   Truck,
-  LogOut
+  LogOut,
+  Image as ImageIcon,
+  Palette,
+  Info,
+  BarChart3
 } from 'lucide-react';
+import { BUSINESS_NICHES, getNicheBackgroundImage } from '@/lib/businessNiches';
 
 const MotorcycleDeliveryIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -266,6 +271,11 @@ export default function AdminPage() {
     quick_action_2: '',
     quick_action_3: '',
     multi_links: {} as Record<string, Array<{ id?: string; value: string; label?: string }>>,
+    bg_type: 'gradient' as 'gradient' | 'image',
+    bg_niche: '',
+    bg_custom_niche: '',
+    bg_image_mode: 'auto' as 'auto' | 'custom',
+    bg_image_url: '',
   });
 
   const [phoneCode, setPhoneCode] = useState<string>(DEFAULT_COUNTRY.dialCode);
@@ -427,7 +437,8 @@ export default function AdminPage() {
       try {
         const session = await getSession();
         if (!session) {
-          router.replace('/login');
+          const returnUrl = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/admin';
+          router.replace(`/login?redirect=${encodeURIComponent(returnUrl)}`);
           return;
         }
 
@@ -549,6 +560,11 @@ export default function AdminPage() {
                 quick_action_2: cardToEdit.quick_action_2 || '',
                 quick_action_3: cardToEdit.quick_action_3 || '',
                 multi_links: cardToEdit.multi_links && typeof cardToEdit.multi_links === 'object' ? cardToEdit.multi_links : {},
+                bg_type: cardToEdit.bg_type || 'gradient',
+                bg_niche: cardToEdit.bg_niche || '',
+                bg_custom_niche: cardToEdit.bg_custom_niche || '',
+                bg_image_mode: cardToEdit.bg_image_mode || 'auto',
+                bg_image_url: cardToEdit.bg_image_url || '',
               });
               setSlug(cardToEdit.slug);
 
@@ -643,6 +659,7 @@ export default function AdminPage() {
                 ...draft.form,
                 menu_pdf: draft.form.menu_pdf && draft.form.menu_pdf.length > 50000 ? '' : draft.form.menu_pdf,
                 logo: draft.form.logo && draft.form.logo.length > 50000 ? '' : draft.form.logo,
+                bg_image_url: draft.form.bg_image_url && draft.form.bg_image_url.length > 50000 ? '' : draft.form.bg_image_url,
               },
             };
             localStorage.setItem('vcard_admin_draft', JSON.stringify(lightDraft));
@@ -747,6 +764,11 @@ export default function AdminPage() {
               quick_action_2: cardToEdit.quick_action_2 || '',
               quick_action_3: cardToEdit.quick_action_3 || '',
               multi_links: cardToEdit.multi_links && typeof cardToEdit.multi_links === 'object' ? cardToEdit.multi_links : {},
+              bg_type: cardToEdit.bg_type || 'gradient',
+              bg_niche: cardToEdit.bg_niche || '',
+              bg_custom_niche: cardToEdit.bg_custom_niche || '',
+              bg_image_mode: cardToEdit.bg_image_mode || 'auto',
+              bg_image_url: cardToEdit.bg_image_url || '',
             });
             setSlug(cardToEdit.slug);
 
@@ -827,6 +849,11 @@ export default function AdminPage() {
           quick_action_2: '',
           quick_action_3: '',
           multi_links: {},
+          bg_type: 'gradient',
+          bg_niche: '',
+          bg_custom_niche: '',
+          bg_image_mode: 'auto',
+          bg_image_url: '',
         });
         setEditingSlug(null);
         setSlug('');
@@ -1189,6 +1216,32 @@ export default function AdminPage() {
 
   const handleRemoveCover = () => {
     setForm(prev => ({ ...prev, cover_photo_url: '' }));
+  };
+
+  const handleBgImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file (PNG, JPG, WebP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const rawDataUrl = event.target?.result as string;
+      if (rawDataUrl) {
+        const compressed = await compressLogoImage(rawDataUrl, 1920, 1080);
+        setForm(prev => ({ ...prev, bg_image_url: compressed }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveBgImage = () => {
+    setForm(prev => ({ 
+      ...prev, 
+      bg_image_url: getNicheBackgroundImage(prev.bg_niche),
+      bg_image_mode: 'auto'
+    }));
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -1684,6 +1737,11 @@ export default function AdminPage() {
         });
         return Object.keys(cleaned).length > 0 ? cleaned : undefined;
       })(),
+      bg_type: form.bg_type || 'gradient',
+      bg_niche: form.bg_niche || undefined,
+      bg_custom_niche: form.bg_custom_niche || undefined,
+      bg_image_mode: form.bg_image_mode || 'auto',
+      bg_image_url: form.bg_image_url || (form.bg_type === 'image' ? getNicheBackgroundImage(form.bg_niche) : undefined),
     };
 
     setCardToConfirm(newCard);
@@ -1777,6 +1835,11 @@ export default function AdminPage() {
         quick_action_2: '',
         quick_action_3: '',
         multi_links: {},
+        bg_type: 'gradient',
+        bg_niche: '',
+        bg_custom_niche: '',
+        bg_image_mode: 'auto',
+        bg_image_url: '',
       });
       setSlug('');
       setExtractedColors(null);
@@ -1866,6 +1929,15 @@ export default function AdminPage() {
             >
               <ArrowLeft className="w-4 h-4" /> Home
             </button>
+            <button
+              type="button"
+              onClick={() => router.push('/admin/analytics')}
+              className="p-2.5 bg-white border border-slate-200 hover:border-slate-300 rounded-2xl text-slate-600 hover:text-slate-900 shadow-2xs transition-all flex items-center gap-1.5 text-xs font-bold font-mono uppercase tracking-wider cursor-pointer"
+              title="View Visitor & QR Analytics"
+            >
+              <BarChart3 className="w-4 h-4 text-indigo-600" />
+              <span className="hidden sm:inline">Analytics</span>
+            </button>
             <div className="h-4 w-[1px] bg-slate-300 hidden sm:block" />
             <div className="hidden sm:block">
               <h1 className="font-serif text-xl font-bold text-slate-900 tracking-tight">
@@ -1882,18 +1954,24 @@ export default function AdminPage() {
               <Sparkles className="w-3 h-3 text-amber-400" />
               {editingSlug ? 'Edit Mode' : 'Live Provisioning'}
             </span>
-            <button
-              type="button"
-              onClick={async () => {
-                await signOut();
-                router.push('/login');
-              }}
-              className="p-2 sm:px-3 sm:py-1.5 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-2xl transition-all text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="Sign Out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+            {!AUTH_DISABLED_FOR_DEVELOPMENT ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  await signOut();
+                  router.push('/login');
+                }}
+                className="p-2 sm:px-3 sm:py-1.5 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-2xl transition-all text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            ) : (
+              <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200/90 px-2.5 py-1 rounded-xl shadow-2xs">
+                Auth Paused
+              </span>
+            )}
           </div>
         </div>
 
@@ -2481,6 +2559,253 @@ export default function AdminPage() {
                       </label>
                     )}
                     <input id="cover-upload-input" type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+                  </div>
+                )}
+
+                {/* Background Style Options - EXCLUSIVELY FOR BUSINESS CARDS */}
+                {form.layout === 'business' && (
+                  <div id="business-bg-field" className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
+                        Card Background Style <span className="text-indigo-600">(Business Layout)</span>
+                      </label>
+                      <span className="text-[10px] font-mono text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md font-bold">
+                        {form.bg_type === 'image' ? 'Image Background' : 'Color Gradient'}
+                      </span>
+                    </div>
+
+                    {/* Two main style choices */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Option 1: Color Gradient */}
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, bg_type: 'gradient' }))}
+                        className={`relative flex items-center gap-3.5 p-3.5 rounded-xl border-2 transition-all cursor-pointer text-left ${
+                          form.bg_type !== 'image'
+                            ? 'bg-white border-indigo-600 ring-2 ring-indigo-500/20 shadow-xs'
+                            : 'bg-white/60 border-slate-200 hover:border-slate-300 hover:bg-white text-slate-600'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
+                          form.bg_type !== 'image'
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                            : 'border-slate-300 bg-slate-100 text-slate-400'
+                        }`}>
+                          <Palette className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-xs font-bold ${form.bg_type !== 'image' ? 'text-indigo-950' : 'text-slate-700'}`}>
+                            Color Gradient
+                          </p>
+                          <p className="text-[10.5px] text-slate-500 font-sans mt-0.5 leading-snug">
+                            Extracted from logo or custom color palette.
+                          </p>
+                        </div>
+                        {form.bg_type !== 'image' && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0" />
+                        )}
+                      </button>
+
+                      {/* Option 2: Image Background */}
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => {
+                          const nextNiche = prev.bg_niche || 'restaurant';
+                          const imgUrl = (prev.bg_image_mode === 'custom' && prev.bg_image_url)
+                            ? prev.bg_image_url 
+                            : getNicheBackgroundImage(nextNiche);
+                          return {
+                            ...prev,
+                            bg_type: 'image',
+                            bg_niche: nextNiche,
+                            bg_image_url: imgUrl,
+                          };
+                        })}
+                        className={`relative flex items-center gap-3.5 p-3.5 rounded-xl border-2 transition-all cursor-pointer text-left ${
+                          form.bg_type === 'image'
+                            ? 'bg-white border-indigo-600 ring-2 ring-indigo-500/20 shadow-xs'
+                            : 'bg-white/60 border-slate-200 hover:border-slate-300 hover:bg-white text-slate-600'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
+                          form.bg_type === 'image'
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                            : 'border-slate-300 bg-slate-100 text-slate-400'
+                        }`}>
+                          <ImageIcon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-xs font-bold ${form.bg_type === 'image' ? 'text-indigo-950' : 'text-slate-700'}`}>
+                            Image Background
+                          </p>
+                          <p className="text-[10.5px] text-slate-500 font-sans mt-0.5 leading-snug">
+                            Full-bleed photography with blur & framed avatar.
+                          </p>
+                        </div>
+                        {form.bg_type === 'image' && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Detailed configuration when Image Background is chosen */}
+                    {form.bg_type === 'image' && (
+                      <div className="pt-3 border-t border-slate-200/80 space-y-4">
+                        {/* Step 1: Niche Selection */}
+                        <div>
+                          <label className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-1.5">
+                            Business Niche / Category *
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={form.bg_niche || ''}
+                              onChange={(e) => {
+                                const newNiche = e.target.value;
+                                setForm(prev => ({
+                                  ...prev,
+                                  bg_niche: newNiche,
+                                  bg_image_url: prev.bg_image_mode === 'auto' ? getNicheBackgroundImage(newNiche) : prev.bg_image_url
+                                }));
+                              }}
+                              className="w-full h-11 pl-4 pr-10 bg-white rounded-xl border border-slate-200 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-xs font-sans text-slate-800 appearance-none font-medium shadow-2xs cursor-pointer"
+                            >
+                              <option value="">-- Select Business Niche --</option>
+                              {BUSINESS_NICHES.map(niche => (
+                                <option key={niche.value} value={niche.value}>{niche.label}</option>
+                              ))}
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          </div>
+                        </div>
+
+                        {/* Custom Niche Text Input if 'others' is selected */}
+                        {form.bg_niche === 'others' && (
+                          <div className="animate-in fade-in duration-200">
+                            <label className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-1.5">
+                              Specify Custom Niche *
+                            </label>
+                            <input
+                              type="text"
+                              value={form.bg_custom_niche || ''}
+                              onChange={(e) => setForm(prev => ({ ...prev, bg_custom_niche: e.target.value }))}
+                              placeholder="e.g. Architecture Studio, Photography, Pet Grooming..."
+                              className="w-full h-11 px-4 bg-white rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 shadow-2xs"
+                            />
+                          </div>
+                        )}
+
+                        {/* Step 2: Image Selection Mode (Auto vs Upload) */}
+                        <div>
+                          <label className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
+                            Image Selection Mode
+                          </label>
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => setForm(prev => ({
+                                ...prev,
+                                bg_image_mode: 'auto',
+                                bg_image_url: getNicheBackgroundImage(prev.bg_niche)
+                              }))}
+                              className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                                form.bg_image_mode === 'auto'
+                                  ? 'bg-indigo-50/80 border-indigo-400 text-indigo-900 font-bold shadow-2xs'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              <span className="block text-xs font-bold">Default / Auto Image</span>
+                              <span className="block text-[10px] text-slate-500 mt-0.5">Preset niche photo</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setForm(prev => ({ ...prev, bg_image_mode: 'custom' }))}
+                              className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                                form.bg_image_mode === 'custom'
+                                  ? 'bg-indigo-50/80 border-indigo-400 text-indigo-900 font-bold shadow-2xs'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              <span className="block text-xs font-bold">Upload Custom Image</span>
+                              <span className="block text-[10px] text-slate-500 mt-0.5">Upload your own photo</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* If Default / Auto Image is chosen: Show active photo preview */}
+                        {form.bg_image_mode === 'auto' && (
+                          <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950">
+                            <div 
+                              className="w-full h-32 bg-cover bg-center brightness-75"
+                              style={{ 
+                                backgroundImage: `url(${form.bg_image_url || getNicheBackgroundImage(form.bg_niche)})`,
+                                filter: 'blur(0.25px)',
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center p-3 text-center">
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                                <Check className="w-3.5 h-3.5" /> Preset Niche Photo Active
+                              </span>
+                              <p className="text-[11px] text-white/90 mt-1.5 font-medium">
+                                Curated HD background for {BUSINESS_NICHES.find(n => n.value === form.bg_niche)?.label || 'selected business category'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* If Upload Custom Image is chosen: Dropzone & Upload Handler */}
+                        {form.bg_image_mode === 'custom' && (
+                          <div className="space-y-3">
+                            {form.bg_image_url ? (
+                              <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 group">
+                                <div 
+                                  className="w-full h-36 bg-cover bg-center brightness-75"
+                                  style={{ 
+                                    backgroundImage: `url(${form.bg_image_url})`,
+                                    filter: 'blur(0.35px)',
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-3">
+                                  <label 
+                                    htmlFor="bg-image-upload-input" 
+                                    className="px-3.5 py-2 bg-white rounded-xl text-xs font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                                  >
+                                    <Upload className="w-3.5 h-3.5" />
+                                    Change Image
+                                  </label>
+                                  <button 
+                                    type="button" 
+                                    onClick={handleRemoveBgImage} 
+                                    className="px-3.5 py-2 bg-red-600 rounded-xl text-xs font-bold text-white cursor-pointer hover:bg-red-700 transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <label 
+                                htmlFor="bg-image-upload-input" 
+                                className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-white hover:bg-slate-50/80 rounded-2xl cursor-pointer transition-all p-4 text-center group shadow-2xs"
+                              >
+                                <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                  <Upload className="w-5 h-5" />
+                                </div>
+                                <span className="text-xs font-bold text-indigo-600">Upload Background Photo</span>
+                                <span className="text-[10px] text-slate-500 mt-1">High quality vertical or square photo (JPG, PNG, WebP)</span>
+                              </label>
+                            )}
+                            <input 
+                              id="bg-image-upload-input" 
+                              type="file" 
+                              accept="image/*" 
+                              className="hidden" 
+                              onChange={handleBgImageUpload} 
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

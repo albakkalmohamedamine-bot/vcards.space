@@ -109,6 +109,11 @@ function mapRowToCard(row: any): BusinessCard {
       ...parsedMultiLinks,
       ...cleanMultiLinks,
     },
+    bg_type: row.bg_type || row.background_type || (parsedMultiLinks._bg_settings && parsedMultiLinks._bg_settings.bg_type) || 'gradient',
+    bg_niche: row.bg_niche || (parsedMultiLinks._bg_settings && parsedMultiLinks._bg_settings.bg_niche) || '',
+    bg_custom_niche: row.bg_custom_niche || (parsedMultiLinks._bg_settings && parsedMultiLinks._bg_settings.bg_custom_niche) || '',
+    bg_image_mode: row.bg_image_mode || (parsedMultiLinks._bg_settings && parsedMultiLinks._bg_settings.bg_image_mode) || 'auto',
+    bg_image_url: row.bg_image_url || row.bg_image || row.background_url || row.background_image || (parsedMultiLinks._bg_settings && parsedMultiLinks._bg_settings.bg_image_url) || '',
   };
 }
 
@@ -168,6 +173,15 @@ function mapCardToRow(card: BusinessCard) {
     multiLinksPayload._primary_labels = primaryLabelsMap;
   }
 
+  // Preserve background settings safely inside JSON without requiring immediate DB schema alteration
+  multiLinksPayload._bg_settings = {
+    bg_type: card.bg_type || 'gradient',
+    bg_niche: card.bg_niche || '',
+    bg_custom_niche: card.bg_custom_niche || '',
+    bg_image_mode: card.bg_image_mode || 'auto',
+    bg_image_url: card.bg_image_url || '',
+  };
+
   return {
     slug: card.slug,
     name: card.name || '',
@@ -224,6 +238,11 @@ function mapCardToRow(card: BusinessCard) {
     quick_action_1: card.quick_action_1 || null,
     quick_action_2: card.quick_action_2 || null,
     quick_action_3: card.quick_action_3 || null,
+    bg_type: card.bg_type || 'gradient',
+    bg_niche: card.bg_niche || null,
+    bg_custom_niche: card.bg_custom_niche || null,
+    bg_image_mode: card.bg_image_mode || 'auto',
+    bg_image_url: card.bg_image_url || null,
     multi_links: multiLinksPayload,
   };
 }
@@ -239,25 +258,34 @@ async function uploadBase64ToSupabaseStorage(fileData: string, prefix: string): 
     let contentType = 'application/octet-stream';
     let bytes: Uint8Array | null = null;
     let ext = 'png';
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'application/pdf', 'image/gif'];
+    // Strictly disallow SVG and HTML to prevent stored XSS attacks
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const allowedDocTypes = ['application/pdf'];
+    const allowedTypes = [...allowedImageTypes, ...allowedDocTypes];
 
     if (fileData.startsWith('data:')) {
       const matches = fileData.match(/^data:(.+);base64,(.+)$/);
       if (matches && matches.length === 3) {
         contentType = matches[1].toLowerCase();
         if (!allowedTypes.includes(contentType)) {
-          throw new Error(`Invalid file type: ${contentType}`);
+          throw new Error(`Unsupported file type: ${contentType}. Only JPEG, PNG, WebP, GIF, and PDF are allowed.`);
         }
         const base64String = matches[2];
         if (contentType.includes('pdf')) ext = 'pdf';
         else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = 'jpg';
         else if (contentType.includes('webp')) ext = 'webp';
-        else if (contentType.includes('svg')) ext = 'svg';
         else if (contentType.includes('gif')) ext = 'gif';
-        else if (contentType.includes('png')) ext = 'png';
+        else ext = 'png';
 
         const binaryStr = atob(base64String);
         const len = binaryStr.length;
+        
+        // Strict file-size limits: 5MB for images, 10MB for PDFs
+        const maxBytes = contentType.includes('pdf') ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+        if (len > maxBytes) {
+          throw new Error(`File exceeds size limit (${contentType.includes('pdf') ? '10MB' : '5MB'}).`);
+        }
+
         bytes = new Uint8Array(len);
         for (let i = 0; i < len; i++) {
           bytes[i] = binaryStr.charCodeAt(i);
@@ -270,14 +298,19 @@ async function uploadBase64ToSupabaseStorage(fileData: string, prefix: string): 
           const blob = await res.blob();
           contentType = (blob.type || 'application/pdf').toLowerCase();
           if (!allowedTypes.includes(contentType)) {
-            throw new Error(`Invalid file type: ${contentType}`);
+            throw new Error(`Unsupported file type: ${contentType}`);
           }
           if (contentType.includes('pdf')) ext = 'pdf';
           else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = 'jpg';
           else if (contentType.includes('webp')) ext = 'webp';
-          else if (contentType.includes('svg')) ext = 'svg';
           else if (contentType.includes('gif')) ext = 'gif';
-          else if (contentType.includes('png')) ext = 'png';
+          else ext = 'png';
+
+          const maxBytes = contentType.includes('pdf') ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+          if (blob.size > maxBytes) {
+            throw new Error(`File exceeds size limit (${contentType.includes('pdf') ? '10MB' : '5MB'}).`);
+          }
+
           const buffer = await blob.arrayBuffer();
           bytes = new Uint8Array(buffer);
         }
@@ -295,7 +328,9 @@ async function uploadBase64ToSupabaseStorage(fileData: string, prefix: string): 
       return fileData;
     }
 
-    const fileName = `${prefix}-${Date.now()}.${ext}`;
+    // Sanitize prefix to prevent path traversal or special character abuse in bucket paths
+    const safePrefix = prefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 50) || 'asset';
+    const fileName = `${safePrefix}-${Date.now()}.${ext}`;
 
     const { error } = await supabase.storage
       .from('logos')
@@ -398,12 +433,18 @@ async function processCardAssets(card: BusinessCard, targetSlug: string): Promis
     uploadedPdf = await uploadBase64ToSupabaseStorage(uploadedPdf, `${targetSlug}-menu`);
   }
 
+  let uploadedBgImage = card.bg_image_url;
+  if (uploadedBgImage && (uploadedBgImage.startsWith('data:') || uploadedBgImage.startsWith('blob:'))) {
+    uploadedBgImage = await uploadBase64ToSupabaseStorage(uploadedBgImage, `${targetSlug}-bg-image`);
+  }
+
   return {
     ...card,
     slug: targetSlug,
     logo: uploadedLogo,
     cover_photo_url: uploadedCover,
     menu_pdf: uploadedPdf,
+    bg_image_url: uploadedBgImage,
     landline: card.landline || '',
     avatar_border_radius: card.avatar_border_radius ?? 50,
     address_type: card.address_type || 'address',
@@ -447,6 +488,15 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
       delete fallbackRow.cover_photo;
     }
 
+    // Delete bg_* columns if the database doesn't have these columns yet
+    if (errMsg.includes('bg_') || errMsg.includes('background')) {
+      delete fallbackRow.bg_type;
+      delete fallbackRow.bg_niche;
+      delete fallbackRow.bg_custom_niche;
+      delete fallbackRow.bg_image_mode;
+      delete fallbackRow.bg_image_url;
+    }
+
     let retryQuery = supabase.from('business_cards');
     const { error: retryError } = originalSlug 
       ? await retryQuery.update(fallbackRow).eq('slug', originalSlug)
@@ -471,6 +521,13 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
         delete minimalRow.cover_photo_url;
         delete minimalRow.cover_photo;
       }
+      if (retryMsg.includes('bg_') || retryMsg.includes('background')) {
+        delete minimalRow.bg_type;
+        delete minimalRow.bg_niche;
+        delete minimalRow.bg_custom_niche;
+        delete minimalRow.bg_image_mode;
+        delete minimalRow.bg_image_url;
+      }
 
       const { error: minError } = originalSlug
         ? await supabase.from('business_cards').update(minimalRow).eq('slug', originalSlug)
@@ -493,6 +550,15 @@ async function performDatabaseOperation(row: any, originalSlug?: string) {
 
 export async function saveCard(newCard: BusinessCard): Promise<{ success: boolean; error?: string; finalSlug?: string }> {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || !session.user) {
+      return { success: false, error: 'Unauthorized: You must be logged in as an administrator to create cards.' };
+    }
+
+    if (!newCard.slug || !/^[a-z0-9_-]{1,100}$/i.test(newCard.slug.trim())) {
+      return { success: false, error: 'Invalid card URL identifier (slug). Use only letters, numbers, hyphens, and underscores (max 100 characters).' };
+    }
+
     const uniqueSlug = await generateUniqueSlug(newCard.slug);
     const cardToSave = await processCardAssets(newCard, uniqueSlug);
     const row = mapCardToRow(cardToSave);
@@ -512,6 +578,15 @@ export async function saveCard(newCard: BusinessCard): Promise<{ success: boolea
 
 export async function updateCard(originalSlug: string, updatedCard: BusinessCard): Promise<{ success: boolean; error?: string; finalSlug?: string }> {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || !session.user) {
+      return { success: false, error: 'Unauthorized: You must be logged in as an administrator to update cards.' };
+    }
+
+    if (!originalSlug || !/^[a-z0-9_-]{1,100}$/i.test(originalSlug.trim())) {
+      return { success: false, error: 'Invalid original slug identifier.' };
+    }
+
     const targetSlug = await generateUniqueSlug(updatedCard.slug, originalSlug);
     const cardToUpdate = await processCardAssets(updatedCard, targetSlug);
     const row = mapCardToRow(cardToUpdate);
@@ -531,6 +606,15 @@ export async function updateCard(originalSlug: string, updatedCard: BusinessCard
 
 export async function deleteCard(slug: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || !session.user) {
+      return { success: false, error: 'Unauthorized: You must be logged in as an administrator to delete cards.' };
+    }
+
+    if (!slug || !/^[a-z0-9_-]{1,100}$/i.test(slug.trim())) {
+      return { success: false, error: 'Invalid card slug identifier.' };
+    }
+
     const { error: dbError } = await supabase
       .from('business_cards')
       .delete()
