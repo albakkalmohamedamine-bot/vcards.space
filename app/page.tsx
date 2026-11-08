@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCards } from '@/lib/storage';
-import { getSession, signOut } from '@/lib/auth';
+import { getSession, signOut, AUTH_DISABLED_FOR_DEVELOPMENT } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { BusinessCard } from '@/lib/types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -17,8 +17,10 @@ import {
   Copy,
   Check,
   LogOut,
-  LogIn
+  LogIn,
+  BarChart3
 } from 'lucide-react';
+import { AdminAnalyticsDashboard } from '@/components/AdminAnalyticsDashboard';
 
 export default function Home() {
   const router = useRouter();
@@ -28,6 +30,7 @@ export default function Home() {
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState<'cards' | 'analytics'>('cards');
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -120,25 +123,73 @@ export default function Home() {
       <div className="max-w-5xl mx-auto">
         
         {/* Top Navigation Bar */}
-        <div className="flex items-center justify-between mb-10 pb-4 border-b border-slate-200/80">
-          <div className="flex items-center gap-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 pb-4 border-b border-slate-200/80">
+          <div className="flex items-center gap-3">
             <img src="/logo-navy.svg" alt="VCARDS SPACE" className="h-7 w-auto" />
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700">Admin Console</span>
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700 hidden md:inline">Admin Console</span>
+            
+            {/* Segmented Tab Switch: Directory vs Analytics */}
+            <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200 ml-1 sm:ml-3">
+              <button
+                type="button"
+                onClick={() => setActiveTab('cards')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'cards'
+                    ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Directory</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('analytics')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'analytics'
+                    ? 'bg-white text-indigo-700 shadow-2xs font-semibold'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Analytics</span>
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={async () => {
-              await signOut();
-              router.push('/login');
-            }}
-            className="flex items-center gap-2 px-3.5 py-1.5 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-xl text-xs font-mono font-bold transition-all shadow-2xs cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Logout</span>
-          </button>
+          
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            {!AUTH_DISABLED_FOR_DEVELOPMENT ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  await signOut();
+                  router.push('/login');
+                }}
+                className="flex items-center gap-2 px-3.5 py-1.5 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-xl text-xs font-mono font-bold transition-all shadow-2xs cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Logout</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50/90 border border-amber-200/90 text-amber-900 rounded-xl text-xs font-mono font-bold shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span>Auth: Temporarily Paused</span>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Hero Branding Section */}
+        {activeTab === 'analytics' ? (
+          <div className="pt-2 pb-12">
+            <div className="mb-8">
+              <h1 className="font-serif text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">Visitor & Scan Analytics</h1>
+              <p className="text-slate-500 text-xs font-mono uppercase tracking-wider mt-1">Real-time QR scans, shared referrals, and customer contact conversions</p>
+            </div>
+            <AdminAnalyticsDashboard cards={cards} />
+          </div>
+        ) : (
+          <>
+            {/* Hero Branding Section */}
         <div className="text-center max-w-2xl mx-auto mb-16 pt-8 md:pt-0 flex flex-col items-center">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -374,6 +425,13 @@ export default function Home() {
                       
                       <div className="flex items-center gap-3">
                         <button
+                          onClick={() => setActiveTab('analytics')}
+                          className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer"
+                        >
+                          Stats
+                        </button>
+                        <span className="text-slate-200 text-xs" aria-hidden="true">|</span>
+                        <button
                           onClick={() => router.push(`/admin?edit=${card.slug}`)}
                           className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer"
                         >
@@ -397,6 +455,8 @@ export default function Home() {
           )}
 
         </div>
+          </>
+        )}
 
       </div>
     </main>

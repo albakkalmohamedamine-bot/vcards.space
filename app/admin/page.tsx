@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCards, saveCard, updateCard, deleteCard, slugify } from '@/lib/storage';
-import { getSession, signOut } from '@/lib/auth';
+import { getSession, signOut, AUTH_DISABLED_FOR_DEVELOPMENT } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { PrimaryActionType, BusinessCard, BusinessLanguage, CardLayout } from '@/lib/types';
 import CardClient from '@/app/card/[slug]/CardClient';
@@ -48,8 +48,13 @@ import {
   Star,
   Wifi,
   Truck,
-  LogOut
+  LogOut,
+  Image as ImageIcon,
+  Palette,
+  Info,
+  BarChart3
 } from 'lucide-react';
+import { BUSINESS_NICHES, getNicheBackgroundImage } from '@/lib/businessNiches';
 
 const MotorcycleDeliveryIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -241,6 +246,19 @@ export default function AdminPage() {
     website_label: 'Website',
     mobile_label: 'Call Us',
     landline_label: 'Office Line',
+    instagram_sub_label: '',
+    facebook_sub_label: '',
+    tiktok_sub_label: '',
+    snapchat_sub_label: '',
+    linkedin_sub_label: '',
+    twitter_sub_label: '',
+    youtube_sub_label: '',
+    whatsapp_sub_label: '',
+    email_sub_label: '',
+    address_sub_label: '',
+    website_sub_label: '',
+    phone_sub_label: '',
+    landline_sub_label: '',
     qr_logo_enabled: true,
     rate_us_enabled: true,
     review_url: '',
@@ -252,6 +270,12 @@ export default function AdminPage() {
     quick_action_1: '',
     quick_action_2: '',
     quick_action_3: '',
+    multi_links: {} as Record<string, Array<{ id?: string; value: string; label?: string }>>,
+    bg_type: 'gradient' as 'gradient' | 'image',
+    bg_niche: '',
+    bg_custom_niche: '',
+    bg_image_mode: 'auto' as 'auto' | 'custom',
+    bg_image_url: '',
   });
 
   const [phoneCode, setPhoneCode] = useState<string>(DEFAULT_COUNTRY.dialCode);
@@ -413,7 +437,8 @@ export default function AdminPage() {
       try {
         const session = await getSession();
         if (!session) {
-          router.replace('/login');
+          const returnUrl = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/admin';
+          router.replace(`/login?redirect=${encodeURIComponent(returnUrl)}`);
           return;
         }
 
@@ -510,6 +535,19 @@ export default function AdminPage() {
                 website_label: cardToEdit.website_label || 'Website',
                 mobile_label: cardToEdit.mobile_label || 'Call Us',
                 landline_label: cardToEdit.landline_label || 'Office Line',
+                instagram_sub_label: cardToEdit.instagram_sub_label || '',
+                facebook_sub_label: cardToEdit.facebook_sub_label || '',
+                tiktok_sub_label: cardToEdit.tiktok_sub_label || '',
+                snapchat_sub_label: cardToEdit.snapchat_sub_label || '',
+                linkedin_sub_label: cardToEdit.linkedin_sub_label || '',
+                twitter_sub_label: cardToEdit.twitter_sub_label || '',
+                youtube_sub_label: cardToEdit.youtube_sub_label || '',
+                whatsapp_sub_label: cardToEdit.whatsapp_sub_label || '',
+                email_sub_label: cardToEdit.email_sub_label || '',
+                address_sub_label: cardToEdit.address_sub_label || '',
+                website_sub_label: cardToEdit.website_sub_label || '',
+                phone_sub_label: cardToEdit.phone_sub_label || '',
+                landline_sub_label: cardToEdit.landline_sub_label || '',
                 qr_logo_enabled: cardToEdit.qr_logo_enabled ?? true,
                 rate_us_enabled: cardToEdit.rate_us_enabled ?? true,
                 review_url: cardToEdit.review_url || '',
@@ -521,8 +559,20 @@ export default function AdminPage() {
                 quick_action_1: cardToEdit.quick_action_1 || '',
                 quick_action_2: cardToEdit.quick_action_2 || '',
                 quick_action_3: cardToEdit.quick_action_3 || '',
+                multi_links: cardToEdit.multi_links && typeof cardToEdit.multi_links === 'object' ? cardToEdit.multi_links : {},
+                bg_type: cardToEdit.bg_type || 'gradient',
+                bg_niche: cardToEdit.bg_niche || '',
+                bg_custom_niche: cardToEdit.bg_custom_niche || '',
+                bg_image_mode: cardToEdit.bg_image_mode || 'auto',
+                bg_image_url: cardToEdit.bg_image_url || '',
               });
               setSlug(cardToEdit.slug);
+
+              if (cardToEdit.logo) {
+                extractColorsFromImage(cardToEdit.logo).then(colors => {
+                  if (isMounted) setExtractedColors(colors);
+                }).catch(err => console.warn('Could not extract colors from existing card logo:', err));
+              }
             }
           } else if (!restored) {
             setEditingSlug(null);
@@ -609,6 +659,7 @@ export default function AdminPage() {
                 ...draft.form,
                 menu_pdf: draft.form.menu_pdf && draft.form.menu_pdf.length > 50000 ? '' : draft.form.menu_pdf,
                 logo: draft.form.logo && draft.form.logo.length > 50000 ? '' : draft.form.logo,
+                bg_image_url: draft.form.bg_image_url && draft.form.bg_image_url.length > 50000 ? '' : draft.form.bg_image_url,
               },
             };
             localStorage.setItem('vcard_admin_draft', JSON.stringify(lightDraft));
@@ -688,6 +739,19 @@ export default function AdminPage() {
               website_label: cardToEdit.website_label || '',
               mobile_label: cardToEdit.mobile_label || '',
               landline_label: cardToEdit.landline_label || '',
+              instagram_sub_label: cardToEdit.instagram_sub_label || '',
+              facebook_sub_label: cardToEdit.facebook_sub_label || '',
+              tiktok_sub_label: cardToEdit.tiktok_sub_label || '',
+              snapchat_sub_label: cardToEdit.snapchat_sub_label || '',
+              linkedin_sub_label: cardToEdit.linkedin_sub_label || '',
+              twitter_sub_label: cardToEdit.twitter_sub_label || '',
+              youtube_sub_label: cardToEdit.youtube_sub_label || '',
+              whatsapp_sub_label: cardToEdit.whatsapp_sub_label || '',
+              email_sub_label: cardToEdit.email_sub_label || '',
+              address_sub_label: cardToEdit.address_sub_label || '',
+              website_sub_label: cardToEdit.website_sub_label || '',
+              phone_sub_label: cardToEdit.phone_sub_label || '',
+              landline_sub_label: cardToEdit.landline_sub_label || '',
               qr_logo_enabled: cardToEdit.qr_logo_enabled ?? true,
               rate_us_enabled: cardToEdit.rate_us_enabled ?? true,
               review_url: cardToEdit.review_url || '',
@@ -699,8 +763,20 @@ export default function AdminPage() {
               quick_action_1: cardToEdit.quick_action_1 || '',
               quick_action_2: cardToEdit.quick_action_2 || '',
               quick_action_3: cardToEdit.quick_action_3 || '',
+              multi_links: cardToEdit.multi_links && typeof cardToEdit.multi_links === 'object' ? cardToEdit.multi_links : {},
+              bg_type: cardToEdit.bg_type || 'gradient',
+              bg_niche: cardToEdit.bg_niche || '',
+              bg_custom_niche: cardToEdit.bg_custom_niche || '',
+              bg_image_mode: cardToEdit.bg_image_mode || 'auto',
+              bg_image_url: cardToEdit.bg_image_url || '',
             });
             setSlug(cardToEdit.slug);
+
+            if (cardToEdit.logo) {
+              extractColorsFromImage(cardToEdit.logo).then(colors => {
+                setExtractedColors(colors);
+              }).catch(err => console.warn('Could not extract colors from discarded draft card logo:', err));
+            }
           }
         });
       } else {
@@ -748,6 +824,19 @@ export default function AdminPage() {
           website_label: '',
           mobile_label: '',
           landline_label: '',
+          instagram_sub_label: '',
+          facebook_sub_label: '',
+          tiktok_sub_label: '',
+          snapchat_sub_label: '',
+          linkedin_sub_label: '',
+          twitter_sub_label: '',
+          youtube_sub_label: '',
+          whatsapp_sub_label: '',
+          email_sub_label: '',
+          address_sub_label: '',
+          website_sub_label: '',
+          phone_sub_label: '',
+          landline_sub_label: '',
           qr_logo_enabled: true,
           rate_us_enabled: true,
           review_url: '',
@@ -759,6 +848,12 @@ export default function AdminPage() {
           quick_action_1: '',
           quick_action_2: '',
           quick_action_3: '',
+          multi_links: {},
+          bg_type: 'gradient',
+          bg_niche: '',
+          bg_custom_niche: '',
+          bg_image_mode: 'auto',
+          bg_image_url: '',
         });
         setEditingSlug(null);
         setSlug('');
@@ -804,6 +899,199 @@ export default function AdminPage() {
     } else if (name === 'email' && value.trim() && !isValidEmail(value.trim())) {
       setFieldErrors(prev => ({ ...prev, email: 'Please enter a valid email address (e.g. name@domain.com).' }));
     }
+  };
+
+  const handleAddMultiLink = (channelKey: string) => {
+    setForm(prev => {
+      const existing = (prev.multi_links && prev.multi_links[channelKey]) || [];
+      return {
+        ...prev,
+        multi_links: {
+          ...(prev.multi_links || {}),
+          [channelKey]: [
+            ...existing,
+            { id: Math.random().toString(36).substring(2, 9), value: '', label: '' }
+          ]
+        }
+      };
+    });
+  };
+
+  const handleUpdateMultiLink = (channelKey: string, index: number, field: 'value' | 'label', val: string) => {
+    setForm(prev => {
+      const existing = [...((prev.multi_links && prev.multi_links[channelKey]) || [])];
+      if (existing[index]) {
+        existing[index] = { ...existing[index], [field]: val };
+      }
+      return {
+        ...prev,
+        multi_links: {
+          ...(prev.multi_links || {}),
+          [channelKey]: existing
+        }
+      };
+    });
+  };
+
+  const handleMoveMultiLink = (channelKey: string, index: number, direction: 'up' | 'down') => {
+    setForm(prev => {
+      const existing = [...((prev.multi_links && prev.multi_links[channelKey]) || [])];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= existing.length) return prev;
+
+      // Swap items
+      const temp = existing[index];
+      existing[index] = existing[targetIndex];
+      existing[targetIndex] = temp;
+
+      return {
+        ...prev,
+        multi_links: {
+          ...(prev.multi_links || {}),
+          [channelKey]: existing
+        }
+      };
+    });
+  };
+
+  const handleRemoveMultiLink = (channelKey: string, index: number) => {
+    setForm(prev => {
+      const existing = ((prev.multi_links && prev.multi_links[channelKey]) || []).filter((_, idx) => idx !== index);
+      const updatedMulti = { ...(prev.multi_links || {}) };
+      if (existing.length === 0) {
+        delete updatedMulti[channelKey];
+      } else {
+        updatedMulti[channelKey] = existing;
+      }
+      return {
+        ...prev,
+        multi_links: updatedMulti
+      };
+    });
+  };
+
+  const renderMultiLinkFields = (
+    channelKey: string,
+    title: string,
+    placeholderValue: string,
+    placeholderLabel: string,
+    colorScheme: { bg: string; border: string; text: string; buttonBg: string; buttonText: string; buttonBorder: string },
+    subLabelKey?: keyof typeof form
+  ) => {
+    // Multi-links and sub-buttons are exclusively available for Business card layouts
+    if (form.layout !== 'business') {
+      return null;
+    }
+
+    const extraLinks = (form.multi_links && form.multi_links[channelKey]) || [];
+    const hasExtras = extraLinks.length > 0;
+    
+    return (
+      <div className="space-y-2.5 mt-3 pt-3 border-t border-slate-200/80">
+        {/* Optional Main Link Sub-Label field when multiple links exist */}
+        {hasExtras && subLabelKey && (
+          <div className="p-3 rounded-xl border border-indigo-100 bg-indigo-50/40 shadow-2xs space-y-1.5 transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono font-bold text-indigo-900 uppercase flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 inline-block" />
+                Main Button #1 Sub-Label (Pop-up Window)
+              </span>
+              <span className="text-[10px] font-mono text-indigo-500 bg-indigo-100/60 px-1.5 py-0.5 rounded">
+                Primary
+              </span>
+            </div>
+            <p className="text-[11px] text-indigo-700/80">
+              Text shown on button #1 inside the pop-up modal when clicked:
+            </p>
+            <input
+              type="text"
+              name={subLabelKey}
+              value={(form[subLabelKey] as string) || ''}
+              onChange={handleChange}
+              placeholder={`e.g. Main ${title} / Branch 1`}
+              className="w-full h-9 px-3 bg-white rounded-lg border border-indigo-200 text-xs font-sans focus:ring-1 focus:ring-indigo-400"
+            />
+          </div>
+        )}
+
+        {extraLinks.map((extra, idx) => (
+          <div 
+            key={extra.id || idx} 
+            className={`p-3 rounded-xl border ${colorScheme.border} ${colorScheme.bg} shadow-2xs space-y-2 transition-all`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-[11px] font-mono font-bold ${colorScheme.text} uppercase flex items-center gap-1.5`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-current inline-block" />
+                Additional {title} Sub-Button #{idx + 2}
+              </span>
+              <div className="flex items-center gap-1">
+                {idx > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => handleMoveMultiLink(channelKey, idx, 'up')}
+                    title="Move sub-button up in display order"
+                    className="text-[11px] text-slate-500 hover:text-slate-800 font-bold px-1.5 py-0.5 rounded hover:bg-black/5 cursor-pointer transition-colors"
+                  >
+                    ↑ Up
+                  </button>
+                )}
+                {idx < extraLinks.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleMoveMultiLink(channelKey, idx, 'down')}
+                    title="Move sub-button down in display order"
+                    className="text-[11px] text-slate-500 hover:text-slate-800 font-bold px-1.5 py-0.5 rounded hover:bg-black/5 cursor-pointer transition-colors"
+                  >
+                    ↓ Down
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveMultiLink(channelKey, idx)}
+                  className="text-[11px] text-red-500 hover:text-red-700 font-bold flex items-center gap-1 hover:bg-red-50 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Remove
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase mb-1">
+                  {channelKey.includes('phone') || channelKey.includes('landline') || channelKey.includes('whatsapp') ? 'Number' : 'Handle / URL'}
+                </label>
+                <input
+                  type={channelKey.includes('phone') || channelKey.includes('landline') || channelKey.includes('whatsapp') ? 'tel' : 'text'}
+                  value={extra.value}
+                  onChange={(e) => handleUpdateMultiLink(channelKey, idx, 'value', e.target.value)}
+                  placeholder={placeholderValue}
+                  className="w-full h-9 px-3 bg-white rounded-lg border border-slate-200 text-xs font-sans focus:ring-1 focus:ring-slate-400"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase mb-1">
+                  Sub-Button #{idx + 2} Label
+                </label>
+                <input
+                  type="text"
+                  value={extra.label || ''}
+                  onChange={(e) => handleUpdateMultiLink(channelKey, idx, 'label', e.target.value)}
+                  placeholder={placeholderLabel || `${title} (${idx + 2})`}
+                  className="w-full h-9 px-3 bg-white rounded-lg border border-slate-200 text-xs font-sans focus:ring-1 focus:ring-slate-400"
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => handleAddMultiLink(channelKey)}
+          className={`w-full py-2 px-3 ${colorScheme.buttonBg} hover:opacity-90 active:scale-[0.99] ${colorScheme.buttonText} rounded-xl border border-dashed ${colorScheme.buttonBorder} text-xs font-bold font-sans flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs`}
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>Add Another {title} Link</span>
+        </button>
+      </div>
+    );
   };
 
   const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -928,6 +1216,32 @@ export default function AdminPage() {
 
   const handleRemoveCover = () => {
     setForm(prev => ({ ...prev, cover_photo_url: '' }));
+  };
+
+  const handleBgImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file (PNG, JPG, WebP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const rawDataUrl = event.target?.result as string;
+      if (rawDataUrl) {
+        const compressed = await compressLogoImage(rawDataUrl, 1920, 1080);
+        setForm(prev => ({ ...prev, bg_image_url: compressed }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveBgImage = () => {
+    setForm(prev => ({ 
+      ...prev, 
+      bg_image_url: getNicheBackgroundImage(prev.bg_niche),
+      bg_image_mode: 'auto'
+    }));
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -1380,6 +1694,19 @@ export default function AdminPage() {
       website_label: form.website_label.trim() || undefined,
       mobile_label: form.mobile_label.trim() || undefined,
       landline_label: form.landline_label.trim() || undefined,
+      instagram_sub_label: form.instagram_sub_label.trim() || undefined,
+      facebook_sub_label: form.facebook_sub_label.trim() || undefined,
+      tiktok_sub_label: form.tiktok_sub_label.trim() || undefined,
+      snapchat_sub_label: form.snapchat_sub_label.trim() || undefined,
+      linkedin_sub_label: form.linkedin_sub_label.trim() || undefined,
+      twitter_sub_label: form.twitter_sub_label.trim() || undefined,
+      youtube_sub_label: form.youtube_sub_label.trim() || undefined,
+      whatsapp_sub_label: form.whatsapp_sub_label.trim() || undefined,
+      email_sub_label: form.email_sub_label.trim() || undefined,
+      address_sub_label: form.address_sub_label.trim() || undefined,
+      website_sub_label: form.website_sub_label.trim() || undefined,
+      phone_sub_label: form.phone_sub_label.trim() || undefined,
+      landline_sub_label: form.landline_sub_label.trim() || undefined,
       qr_logo_enabled: form.qr_logo_enabled ?? true,
       rate_us_enabled: form.rate_us_enabled ?? true,
       review_url: sanitizeUrl(form.review_url),
@@ -1391,6 +1718,30 @@ export default function AdminPage() {
       quick_action_1: form.quick_action_1 || undefined,
       quick_action_2: form.quick_action_2 || undefined,
       quick_action_3: form.quick_action_3 || undefined,
+      multi_links: (() => {
+        if (!form.multi_links || typeof form.multi_links !== 'object') return undefined;
+        const cleaned: Record<string, Array<{ id?: string; value: string; label?: string }>> = {};
+        Object.entries(form.multi_links).forEach(([channel, list]) => {
+          if (Array.isArray(list)) {
+            const valid = list
+              .map(item => ({
+                id: item.id || Math.random().toString(36).substring(2, 9),
+                value: item.value?.trim() || '',
+                label: item.label?.trim() || undefined,
+              }))
+              .filter(item => item.value !== '');
+            if (valid.length > 0) {
+              cleaned[channel] = valid;
+            }
+          }
+        });
+        return Object.keys(cleaned).length > 0 ? cleaned : undefined;
+      })(),
+      bg_type: form.bg_type || 'gradient',
+      bg_niche: form.bg_niche || undefined,
+      bg_custom_niche: form.bg_custom_niche || undefined,
+      bg_image_mode: form.bg_image_mode || 'auto',
+      bg_image_url: form.bg_image_url || (form.bg_type === 'image' ? getNicheBackgroundImage(form.bg_niche) : undefined),
     };
 
     setCardToConfirm(newCard);
@@ -1459,6 +1810,19 @@ export default function AdminPage() {
         website_label: 'Website',
         mobile_label: 'Call Us',
         landline_label: 'Office Line',
+        instagram_sub_label: '',
+        facebook_sub_label: '',
+        tiktok_sub_label: '',
+        snapchat_sub_label: '',
+        linkedin_sub_label: '',
+        twitter_sub_label: '',
+        youtube_sub_label: '',
+        whatsapp_sub_label: '',
+        email_sub_label: '',
+        address_sub_label: '',
+        website_sub_label: '',
+        phone_sub_label: '',
+        landline_sub_label: '',
         qr_logo_enabled: true,
         rate_us_enabled: true,
         review_url: '',
@@ -1470,6 +1834,12 @@ export default function AdminPage() {
         quick_action_1: '',
         quick_action_2: '',
         quick_action_3: '',
+        multi_links: {},
+        bg_type: 'gradient',
+        bg_niche: '',
+        bg_custom_niche: '',
+        bg_image_mode: 'auto',
+        bg_image_url: '',
       });
       setSlug('');
       setExtractedColors(null);
@@ -1513,21 +1883,27 @@ export default function AdminPage() {
   };
 
   const defaultSwatches: ColorSwatch[] = [
-    { hex: '#1B2A4A', name: 'Navy', hsl: [222, 0.46, 0.20], isDark: true },
-    { hex: '#8B263E', name: 'Burgundy', hsl: [346, 0.57, 0.35], isDark: true },
-    { hex: '#2D5A27', name: 'Forest', hsl: [112, 0.39, 0.25], isDark: true },
-    { hex: '#4A3B32', name: 'Espresso', hsl: [23, 0.20, 0.24], isDark: true },
-    { hex: '#1A1A24', name: 'Midnight', hsl: [240, 0.16, 0.12], isDark: true },
-    { hex: '#0F4C81', name: 'Classic Blue', hsl: [208, 0.79, 0.28], isDark: true },
+    { hex: '#1B2A4A', name: 'Royal Navy', hsl: [222, 0.46, 0.20], isDark: true },
+    { hex: '#8B263E', name: 'Rich Burgundy', hsl: [346, 0.57, 0.35], isDark: true },
+    { hex: '#2D5A27', name: 'Deep Forest', hsl: [112, 0.39, 0.25], isDark: true },
+    { hex: '#4A3B32', name: 'Espresso Bronze', hsl: [23, 0.20, 0.24], isDark: true },
+    { hex: '#0F4C81', name: 'Classic Sapphire', hsl: [208, 0.79, 0.28], isDark: true },
+    { hex: '#1A1A24', name: 'Midnight Slate', hsl: [240, 0.16, 0.12], isDark: true },
+    { hex: '#C25E00', name: 'Warm Amber', hsl: [29, 1.0, 0.38], isDark: true },
+    { hex: '#4F46E5', name: 'Vibrant Indigo', hsl: [245, 0.75, 0.59], isDark: true },
   ];
 
-  const swatchesToDisplay: ColorSwatch[] = extractedColors
+  const swatchesToDisplay: ColorSwatch[] = extractedColors?.allSwatches?.length
+    ? extractedColors.allSwatches
+    : extractedColors
     ? ([
+        extractedColors.dominant,
         extractedColors.vibrant,
         extractedColors.darkVibrant,
-        extractedColors.lightVibrant,
+        extractedColors.secondary,
         extractedColors.muted,
         extractedColors.darkMuted,
+        extractedColors.lightVibrant,
         extractedColors.lightMuted,
       ].filter(Boolean) as ColorSwatch[])
     : defaultSwatches;
@@ -1553,6 +1929,15 @@ export default function AdminPage() {
             >
               <ArrowLeft className="w-4 h-4" /> Home
             </button>
+            <button
+              type="button"
+              onClick={() => router.push('/admin/analytics')}
+              className="p-2.5 bg-white border border-slate-200 hover:border-slate-300 rounded-2xl text-slate-600 hover:text-slate-900 shadow-2xs transition-all flex items-center gap-1.5 text-xs font-bold font-mono uppercase tracking-wider cursor-pointer"
+              title="View Visitor & QR Analytics"
+            >
+              <BarChart3 className="w-4 h-4 text-indigo-600" />
+              <span className="hidden sm:inline">Analytics</span>
+            </button>
             <div className="h-4 w-[1px] bg-slate-300 hidden sm:block" />
             <div className="hidden sm:block">
               <h1 className="font-serif text-xl font-bold text-slate-900 tracking-tight">
@@ -1569,18 +1954,24 @@ export default function AdminPage() {
               <Sparkles className="w-3 h-3 text-amber-400" />
               {editingSlug ? 'Edit Mode' : 'Live Provisioning'}
             </span>
-            <button
-              type="button"
-              onClick={async () => {
-                await signOut();
-                router.push('/login');
-              }}
-              className="p-2 sm:px-3 sm:py-1.5 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-2xl transition-all text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="Sign Out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+            {!AUTH_DISABLED_FOR_DEVELOPMENT ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  await signOut();
+                  router.push('/login');
+                }}
+                className="p-2 sm:px-3 sm:py-1.5 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-2xl transition-all text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            ) : (
+              <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200/90 px-2.5 py-1 rounded-xl shadow-2xs">
+                Auth Paused
+              </span>
+            )}
           </div>
         </div>
 
@@ -2170,6 +2561,253 @@ export default function AdminPage() {
                     <input id="cover-upload-input" type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
                   </div>
                 )}
+
+                {/* Background Style Options - EXCLUSIVELY FOR BUSINESS CARDS */}
+                {form.layout === 'business' && (
+                  <div id="business-bg-field" className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider">
+                        Card Background Style <span className="text-indigo-600">(Business Layout)</span>
+                      </label>
+                      <span className="text-[10px] font-mono text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md font-bold">
+                        {form.bg_type === 'image' ? 'Image Background' : 'Color Gradient'}
+                      </span>
+                    </div>
+
+                    {/* Two main style choices */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Option 1: Color Gradient */}
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, bg_type: 'gradient' }))}
+                        className={`relative flex items-center gap-3.5 p-3.5 rounded-xl border-2 transition-all cursor-pointer text-left ${
+                          form.bg_type !== 'image'
+                            ? 'bg-white border-indigo-600 ring-2 ring-indigo-500/20 shadow-xs'
+                            : 'bg-white/60 border-slate-200 hover:border-slate-300 hover:bg-white text-slate-600'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
+                          form.bg_type !== 'image'
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                            : 'border-slate-300 bg-slate-100 text-slate-400'
+                        }`}>
+                          <Palette className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-xs font-bold ${form.bg_type !== 'image' ? 'text-indigo-950' : 'text-slate-700'}`}>
+                            Color Gradient
+                          </p>
+                          <p className="text-[10.5px] text-slate-500 font-sans mt-0.5 leading-snug">
+                            Extracted from logo or custom color palette.
+                          </p>
+                        </div>
+                        {form.bg_type !== 'image' && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0" />
+                        )}
+                      </button>
+
+                      {/* Option 2: Image Background */}
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => {
+                          const nextNiche = prev.bg_niche || 'restaurant';
+                          const imgUrl = (prev.bg_image_mode === 'custom' && prev.bg_image_url)
+                            ? prev.bg_image_url 
+                            : getNicheBackgroundImage(nextNiche);
+                          return {
+                            ...prev,
+                            bg_type: 'image',
+                            bg_niche: nextNiche,
+                            bg_image_url: imgUrl,
+                          };
+                        })}
+                        className={`relative flex items-center gap-3.5 p-3.5 rounded-xl border-2 transition-all cursor-pointer text-left ${
+                          form.bg_type === 'image'
+                            ? 'bg-white border-indigo-600 ring-2 ring-indigo-500/20 shadow-xs'
+                            : 'bg-white/60 border-slate-200 hover:border-slate-300 hover:bg-white text-slate-600'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
+                          form.bg_type === 'image'
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                            : 'border-slate-300 bg-slate-100 text-slate-400'
+                        }`}>
+                          <ImageIcon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-xs font-bold ${form.bg_type === 'image' ? 'text-indigo-950' : 'text-slate-700'}`}>
+                            Image Background
+                          </p>
+                          <p className="text-[10.5px] text-slate-500 font-sans mt-0.5 leading-snug">
+                            Full-bleed photography with blur & framed avatar.
+                          </p>
+                        </div>
+                        {form.bg_type === 'image' && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Detailed configuration when Image Background is chosen */}
+                    {form.bg_type === 'image' && (
+                      <div className="pt-3 border-t border-slate-200/80 space-y-4">
+                        {/* Step 1: Niche Selection */}
+                        <div>
+                          <label className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-1.5">
+                            Business Niche / Category *
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={form.bg_niche || ''}
+                              onChange={(e) => {
+                                const newNiche = e.target.value;
+                                setForm(prev => ({
+                                  ...prev,
+                                  bg_niche: newNiche,
+                                  bg_image_url: prev.bg_image_mode === 'auto' ? getNicheBackgroundImage(newNiche) : prev.bg_image_url
+                                }));
+                              }}
+                              className="w-full h-11 pl-4 pr-10 bg-white rounded-xl border border-slate-200 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 transition-all text-xs font-sans text-slate-800 appearance-none font-medium shadow-2xs cursor-pointer"
+                            >
+                              <option value="">-- Select Business Niche --</option>
+                              {BUSINESS_NICHES.map(niche => (
+                                <option key={niche.value} value={niche.value}>{niche.label}</option>
+                              ))}
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          </div>
+                        </div>
+
+                        {/* Custom Niche Text Input if 'others' is selected */}
+                        {form.bg_niche === 'others' && (
+                          <div className="animate-in fade-in duration-200">
+                            <label className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-1.5">
+                              Specify Custom Niche *
+                            </label>
+                            <input
+                              type="text"
+                              value={form.bg_custom_niche || ''}
+                              onChange={(e) => setForm(prev => ({ ...prev, bg_custom_niche: e.target.value }))}
+                              placeholder="e.g. Architecture Studio, Photography, Pet Grooming..."
+                              className="w-full h-11 px-4 bg-white rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600 shadow-2xs"
+                            />
+                          </div>
+                        )}
+
+                        {/* Step 2: Image Selection Mode (Auto vs Upload) */}
+                        <div>
+                          <label className="block text-xs font-mono font-bold uppercase text-slate-700 tracking-wider mb-2">
+                            Image Selection Mode
+                          </label>
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => setForm(prev => ({
+                                ...prev,
+                                bg_image_mode: 'auto',
+                                bg_image_url: getNicheBackgroundImage(prev.bg_niche)
+                              }))}
+                              className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                                form.bg_image_mode === 'auto'
+                                  ? 'bg-indigo-50/80 border-indigo-400 text-indigo-900 font-bold shadow-2xs'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              <span className="block text-xs font-bold">Default / Auto Image</span>
+                              <span className="block text-[10px] text-slate-500 mt-0.5">Preset niche photo</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setForm(prev => ({ ...prev, bg_image_mode: 'custom' }))}
+                              className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                                form.bg_image_mode === 'custom'
+                                  ? 'bg-indigo-50/80 border-indigo-400 text-indigo-900 font-bold shadow-2xs'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              <span className="block text-xs font-bold">Upload Custom Image</span>
+                              <span className="block text-[10px] text-slate-500 mt-0.5">Upload your own photo</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* If Default / Auto Image is chosen: Show active photo preview */}
+                        {form.bg_image_mode === 'auto' && (
+                          <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950">
+                            <div 
+                              className="w-full h-32 bg-cover bg-center brightness-75"
+                              style={{ 
+                                backgroundImage: `url(${form.bg_image_url || getNicheBackgroundImage(form.bg_niche)})`,
+                                filter: 'blur(0.25px)',
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center p-3 text-center">
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                                <Check className="w-3.5 h-3.5" /> Preset Niche Photo Active
+                              </span>
+                              <p className="text-[11px] text-white/90 mt-1.5 font-medium">
+                                Curated HD background for {BUSINESS_NICHES.find(n => n.value === form.bg_niche)?.label || 'selected business category'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* If Upload Custom Image is chosen: Dropzone & Upload Handler */}
+                        {form.bg_image_mode === 'custom' && (
+                          <div className="space-y-3">
+                            {form.bg_image_url ? (
+                              <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 group">
+                                <div 
+                                  className="w-full h-36 bg-cover bg-center brightness-75"
+                                  style={{ 
+                                    backgroundImage: `url(${form.bg_image_url})`,
+                                    filter: 'blur(0.35px)',
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-3">
+                                  <label 
+                                    htmlFor="bg-image-upload-input" 
+                                    className="px-3.5 py-2 bg-white rounded-xl text-xs font-bold text-slate-800 cursor-pointer hover:bg-slate-100 transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                                  >
+                                    <Upload className="w-3.5 h-3.5" />
+                                    Change Image
+                                  </label>
+                                  <button 
+                                    type="button" 
+                                    onClick={handleRemoveBgImage} 
+                                    className="px-3.5 py-2 bg-red-600 rounded-xl text-xs font-bold text-white cursor-pointer hover:bg-red-700 transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <label 
+                                htmlFor="bg-image-upload-input" 
+                                className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-white hover:bg-slate-50/80 rounded-2xl cursor-pointer transition-all p-4 text-center group shadow-2xs"
+                              >
+                                <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                  <Upload className="w-5 h-5" />
+                                </div>
+                                <span className="text-xs font-bold text-indigo-600">Upload Background Photo</span>
+                                <span className="text-[10px] text-slate-500 mt-1">High quality vertical or square photo (JPG, PNG, WebP)</span>
+                              </label>
+                            )}
+                            <input 
+                              id="bg-image-upload-input" 
+                              type="file" 
+                              accept="image/*" 
+                              className="hidden" 
+                              onChange={handleBgImageUpload} 
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Brand Color System */}
@@ -2194,21 +2832,21 @@ export default function AdminPage() {
                     <span className="block text-[10px] font-mono text-slate-600 uppercase tracking-wide mb-2.5 font-bold">
                       {form.logo ? 'Extracted Swatches' : 'Suggested Swatches'}
                     </span>
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
                       {swatchesToDisplay.map((swatch) => (
                         <button
-                          key={swatch.name}
+                          key={`${swatch.name}-${swatch.hex}`}
                           type="button"
                           onClick={() => setForm(prev => ({ ...prev, themeColor: swatch.hex }))}
-                          className={`group flex flex-col items-center justify-center p-2.5 min-h-[72px] rounded-xl border transition-all text-center select-none touch-manipulation cursor-pointer ${
+                          className={`group flex flex-col items-center justify-center p-2.5 min-h-[76px] rounded-xl border transition-all text-center select-none touch-manipulation cursor-pointer ${
                             form.themeColor.toLowerCase() === swatch.hex.toLowerCase()
-                              ? 'border-indigo-600 bg-white shadow-sm ring-2 ring-indigo-500/10 scale-[1.02]'
+                              ? 'border-indigo-600 bg-white shadow-sm ring-2 ring-indigo-500/20 scale-[1.02]'
                               : 'border-slate-200 bg-white hover:border-slate-300 active:scale-98'
                           }`}
                           title={`${swatch.name}: ${swatch.hex}`}
                         >
                           <div 
-                            className="w-8 h-8 rounded-full shadow-inner mb-1.5 transition-transform group-hover:scale-105 shrink-0" 
+                            className="w-7 h-7 rounded-full shadow-inner mb-1.5 transition-transform group-hover:scale-110 shrink-0 border border-black/10" 
                             style={{ backgroundColor: swatch.hex }}
                           />
                           <span className="text-[10px] font-bold text-slate-800 truncate w-full leading-tight">
@@ -2547,6 +3185,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('instagram', 'Instagram', 'e.g. mybusiness2 or URL', 'Instagram 2', { bg: 'bg-pink-50/50', border: 'border-pink-200', text: 'text-pink-700', buttonBg: 'bg-pink-50 hover:bg-pink-100', buttonText: 'text-pink-700', buttonBorder: 'border-pink-300' }, 'instagram_sub_label')}
                     </div>
 
                     {/* 4. Facebook */}
@@ -2585,6 +3224,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('facebook', 'Facebook', 'e.g. page2 or URL', 'Facebook 2', { bg: 'bg-blue-50/50', border: 'border-blue-200', text: 'text-blue-700', buttonBg: 'bg-blue-50 hover:bg-blue-100', buttonText: 'text-blue-700', buttonBorder: 'border-blue-300' }, 'facebook_sub_label')}
                     </div>
 
                     {/* 5. TikTok */}
@@ -2625,6 +3265,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('tiktok', 'TikTok', 'e.g. @account2', 'TikTok 2', { bg: 'bg-slate-100/60', border: 'border-slate-300', text: 'text-slate-900', buttonBg: 'bg-slate-100 hover:bg-slate-200', buttonText: 'text-slate-800', buttonBorder: 'border-slate-300' }, 'tiktok_sub_label')}
                     </div>
 
                     {/* 6. Snapchat */}
@@ -2665,6 +3306,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('snapchat', 'Snapchat', 'e.g. account2', 'Snapchat 2', { bg: 'bg-yellow-50/60', border: 'border-yellow-200', text: 'text-yellow-800', buttonBg: 'bg-yellow-50 hover:bg-yellow-100', buttonText: 'text-yellow-800', buttonBorder: 'border-yellow-300' }, 'snapchat_sub_label')}
                     </div>
 
                     {/* 7. LinkedIn */}
@@ -2705,6 +3347,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('linkedin', 'LinkedIn', 'e.g. company/branch2', 'LinkedIn 2', { bg: 'bg-blue-50/50', border: 'border-blue-200', text: 'text-blue-700', buttonBg: 'bg-blue-50 hover:bg-blue-100', buttonText: 'text-blue-700', buttonBorder: 'border-blue-300' }, 'linkedin_sub_label')}
                     </div>
 
                     {/* 8. X (Twitter) */}
@@ -2745,6 +3388,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('twitter', 'X (Twitter)', 'e.g. @handle2', 'X 2', { bg: 'bg-slate-100/60', border: 'border-slate-300', text: 'text-slate-900', buttonBg: 'bg-slate-100 hover:bg-slate-200', buttonText: 'text-slate-800', buttonBorder: 'border-slate-300' }, 'twitter_sub_label')}
                     </div>
 
                     {/* 9. YouTube */}
@@ -2785,6 +3429,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('youtube', 'YouTube', 'e.g. @channel2', 'YouTube 2', { bg: 'bg-red-50/50', border: 'border-red-200', text: 'text-red-700', buttonBg: 'bg-red-50 hover:bg-red-100', buttonText: 'text-red-700', buttonBorder: 'border-red-300' }, 'youtube_sub_label')}
                     </div>
 
                     {/* 6. WhatsApp */}
@@ -2836,6 +3481,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('whatsapp', 'WhatsApp', 'e.g. +1234567890', 'WhatsApp 2', { bg: 'bg-emerald-50/50', border: 'border-emerald-200', text: 'text-emerald-700', buttonBg: 'bg-emerald-50 hover:bg-emerald-100', buttonText: 'text-emerald-700', buttonBorder: 'border-emerald-300' }, 'whatsapp_sub_label')}
                     </div>
 
                     {/* 7. Email */}
@@ -2874,6 +3520,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('email', 'Email', 'e.g. support@business.com', 'Support Email', { bg: 'bg-purple-50/50', border: 'border-purple-200', text: 'text-purple-700', buttonBg: 'bg-purple-50 hover:bg-purple-100', buttonText: 'text-purple-700', buttonBorder: 'border-purple-300' }, 'email_sub_label')}
                     </div>
 
                     {/* 8. Localisation */}
@@ -2912,6 +3559,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('address', 'Location', 'e.g. Branch 2 Address', 'Branch 2', { bg: 'bg-amber-50/50', border: 'border-amber-200', text: 'text-amber-700', buttonBg: 'bg-amber-50 hover:bg-amber-100', buttonText: 'text-amber-700', buttonBorder: 'border-amber-300' }, 'address_sub_label')}
                     </div>
 
                     {/* 9. Website */}
@@ -2950,6 +3598,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('website', 'Website', 'https://shop.business.com', 'Online Store', { bg: 'bg-indigo-50/50', border: 'border-indigo-200', text: 'text-indigo-700', buttonBg: 'bg-indigo-50 hover:bg-indigo-100', buttonText: 'text-indigo-700', buttonBorder: 'border-indigo-300' }, 'website_sub_label')}
                     </div>
 
                     {/* 10. Mobile Phone */}
@@ -3001,6 +3650,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('phone', 'Phone Number', 'e.g. +1234567890', 'Sales Line', { bg: 'bg-teal-50/50', border: 'border-teal-200', text: 'text-teal-700', buttonBg: 'bg-teal-50 hover:bg-teal-100', buttonText: 'text-teal-700', buttonBorder: 'border-teal-300' }, 'phone_sub_label')}
                     </div>
 
                     {/* 11. Landline */}
@@ -3052,6 +3702,7 @@ export default function AdminPage() {
                           />
                         </div>
                       </div>
+                      {renderMultiLinkFields('landline', 'Landline', 'e.g. +1234567890', 'Reception', { bg: 'bg-slate-100/60', border: 'border-slate-300', text: 'text-slate-800', buttonBg: 'bg-slate-100 hover:bg-slate-200', buttonText: 'text-slate-800', buttonBorder: 'border-slate-300' }, 'landline_sub_label')}
                     </div>
 
                     {/* 12. 5 Golden Stars & Google Review Button */}
@@ -3801,7 +4452,6 @@ export default function AdminPage() {
                         <option value="landline">Office Line</option>
                         <option value="website">Website</option>
                         <option value="delivery">Delivery</option>
-                        <option value="wifi_password">WiFi Password</option>
                       </select>
                     </div>
 
@@ -3831,7 +4481,6 @@ export default function AdminPage() {
                         <option value="landline">Office Line</option>
                         <option value="website">Website</option>
                         <option value="delivery">Delivery</option>
-                        <option value="wifi_password">WiFi Password</option>
                       </select>
                     </div>
 
@@ -3861,7 +4510,6 @@ export default function AdminPage() {
                         <option value="landline">Office Line</option>
                         <option value="website">Website</option>
                         <option value="delivery">Delivery</option>
-                        <option value="wifi_password">WiFi Password</option>
                       </select>
                     </div>
                   </div>
@@ -3886,7 +4534,6 @@ export default function AdminPage() {
                         { id: 'email', label: 'Email' },
                         { id: 'website', label: 'Website' },
                         { id: 'delivery', label: 'Delivery' },
-                        { id: 'wifi_password', label: 'WiFi' },
                       ].map(chip => {
                         const slot1 = form.quick_action_1 === '' ? 'phone' : form.quick_action_1;
                         const slot2 = form.quick_action_2 === '' ? 'whatsapp' : form.quick_action_2;
